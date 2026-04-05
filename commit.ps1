@@ -1,4 +1,3 @@
-git config user.email "v_sen@auditex.dev"
-git config user.name "v_sen"
-git commit -m "feat: initial project scaffold -- Phase 0"
+git add -A
+git commit -m "feat: Phase 1 complete -- DB models, migrations, tamper-proof audit_events policy, MT-006 PASS"
 git log --oneline

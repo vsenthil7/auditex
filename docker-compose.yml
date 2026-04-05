@@ -1,4 +1,4 @@
-﻿version: '3.9'
+version: '3.9'
 
 services:
 
@@ -8,7 +8,21 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://auditex:auditex_dev_pw@postgres:5432/auditex
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_USER: auditex
+      POSTGRES_PASSWORD: auditex_dev_pw
+      POSTGRES_DB: auditex
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      ANTHROPIC_API_KEY: placeholder
+      OPENAI_API_KEY: placeholder
+      JWT_SECRET: dev_secret
+      API_KEY_SALT: dev_salt
+      FOXMQ_BROKER_URL: mqtt://foxmq:1883
+      VERTEX_NODE_URL: http://localhost:8545
+      VERTEX_PRIVATE_KEY: placeholder
     depends_on:
       postgres:
         condition: service_healthy
@@ -22,7 +36,20 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://auditex:auditex_dev_pw@postgres:5432/auditex
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_USER: auditex
+      POSTGRES_PASSWORD: auditex_dev_pw
+      POSTGRES_DB: auditex
+      ENVIRONMENT: development
+      ANTHROPIC_API_KEY: placeholder
+      OPENAI_API_KEY: placeholder
+      JWT_SECRET: dev_secret
+      API_KEY_SALT: dev_salt
+      FOXMQ_BROKER_URL: mqtt://foxmq:1883
+      VERTEX_NODE_URL: http://localhost:8545
+      VERTEX_PRIVATE_KEY: placeholder
     depends_on:
       - redis
       - postgres
