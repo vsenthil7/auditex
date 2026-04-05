@@ -1,9 +1,10 @@
 """
 Auditex -- Execution worker.
 Celery task that executes a submitted task using the Claude executor,
-then runs the full review pipeline (Phase 4).
+then runs the full review pipeline, then submits to the Vertex consensus
+layer (stub in Phase 5), then marks COMPLETED.
 
-Phase 4 lifecycle:  QUEUED -> EXECUTING -> REVIEWING -> COMPLETED | FAILED
+Phase 5 lifecycle:  QUEUED -> EXECUTING -> REVIEWING -> FINALISING -> COMPLETED | FAILED
 
 The Celery task is synchronous (standard def) because Celery workers run in
 their own process. Async DB and AI calls are wrapped with asyncio.run().
@@ -24,6 +25,11 @@ logger = get_task_logger(__name__)
 
 # Maximum retry attempts before routing to DLQ
 _MAX_RETRIES = 3
+
+# In stub mode, sleep briefly after committing FINALISING so that the status
+# is observable by pollers before COMPLETED is written.
+# In production, real Vertex consensus (~26-100ms) provides this naturally.
+_FINALISING_STUB_SLEEP_SECONDS = 2
 
 
 @celery_app.task(
@@ -48,7 +54,7 @@ def execute_task(self, task_id_str: str) -> dict:
 
 async def _execute_task_async(celery_task, task_id_str: str) -> dict:
     """
-    Async implementation of the execution + review logic.
+    Async implementation of the execution + review + consensus logic.
     Separated from the sync Celery wrapper to allow clean async/await usage.
     """
     # Import here to avoid circular imports at module load time
@@ -56,6 +62,9 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
     from core.execution.retry_handler import exponential_backoff, route_to_dlq
     from core.review.coordinator import run_review_pipeline
     from core.review.hash_commitment import SecurityViolationError
+    from core.consensus.event_builder import build_task_completed_event
+    from core.consensus.foxmq_client import publish_event as foxmq_publish
+    from core.consensus.vertex_client import submit_event as vertex_submit, _STUB_MODE as vertex_stub_mode
     from db.connection import AsyncSessionLocal
     from db.repositories import event_repo, task_repo
     from services.claude_service import ClaudeServiceError
@@ -129,7 +138,6 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
             )
 
             if attempt < _MAX_RETRIES:
-                # Increment retry count in DB
                 await task_repo.update_task_status(
                     session,
                     task_id=task_id,
@@ -144,12 +152,10 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
                 )
                 await session.commit()
 
-                # Apply backoff then re-raise for Celery retry
                 await exponential_backoff(attempt)
                 raise celery_task.retry(exc=exc, countdown=0)
 
             else:
-                # All retries exhausted -- route to DLQ
                 await route_to_dlq(
                     session,
                     task_id,
@@ -159,7 +165,6 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
                 return {"task_id": task_id_str, "status": "FAILED"}
 
         except Exception as exc:
-            # Unexpected error -- route to DLQ immediately
             logger.exception("execute_task: unexpected error for %s: %s", task_id, exc)
             await route_to_dlq(session, task_id, f"Unexpected error: {exc}")
             await session.commit()
@@ -225,7 +230,6 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
             )
 
         except SecurityViolationError as exc:
-            # Hash commitment mismatch -- log security violation and fail
             logger.error(
                 "execute_task: SECURITY_VIOLATION in review pipeline | task=%s: %s",
                 task_id, exc,
@@ -243,7 +247,6 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
             return {"task_id": task_id_str, "status": "FAILED"}
 
         except Exception as exc:
-            # Review pipeline failure -- route to DLQ
             logger.exception(
                 "execute_task: review pipeline failed | task=%s: %s", task_id, exc
             )
@@ -254,11 +257,8 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
             return {"task_id": task_id_str, "status": "FAILED"}
 
         # ------------------------------------------------------------------
-        # 8. Build review result JSON and mark COMPLETED
+        # 8. Build review result JSON blob
         # ------------------------------------------------------------------
-        completed_at = datetime.now(timezone.utc)
-
-        # Structured review blob exactly matching MT-005 expected response shape
         review_result_blob = {
             "consensus": review_result.consensus,
             "reviewers": [
@@ -273,14 +273,6 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
             "completed_at": review_result.completed_at,
         }
 
-        await task_repo.update_task_status(
-            session,
-            task_id=task_id,
-            status="COMPLETED",
-            review_result_json=json.dumps(review_result_blob),
-            consensus_result=review_result.consensus,
-            completed_at=completed_at,
-        )
         await event_repo.insert_event(
             session,
             task_id=task_id,
@@ -291,6 +283,102 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
                 "verdicts": review_result.verdicts,
             },
         )
+
+        # ------------------------------------------------------------------
+        # 9. Mark FINALISING -- review done, submitting to Vertex (stub)
+        #    Commit before the consensus calls so the status is immediately
+        #    visible to pollers. In stub mode, sleep briefly to ensure the
+        #    FINALISING status is observable (real Vertex takes 26-100ms+).
+        # ------------------------------------------------------------------
+        await task_repo.update_task_status(
+            session,
+            task_id=task_id,
+            status="FINALISING",
+            review_result_json=json.dumps(review_result_blob),
+            consensus_result=review_result.consensus,
+        )
+        await event_repo.insert_event(
+            session,
+            task_id=task_id,
+            event_type="task_finalising_started",
+            payload={"consensus": review_result.consensus},
+        )
+        await session.commit()
+
+        logger.info(
+            "execute_task: review complete, entering FINALISING | task=%s consensus=%s stub=%s",
+            task_id, review_result.consensus, vertex_stub_mode,
+        )
+
+        # Stub-mode pause: gives pollers a guaranteed window to observe FINALISING.
+        # Remove when real Vertex is wired up -- consensus latency replaces this.
+        if vertex_stub_mode:
+            await asyncio.sleep(_FINALISING_STUB_SLEEP_SECONDS)
+
+        # ------------------------------------------------------------------
+        # 10. Consensus layer: FoxMQ publish + Vertex finalisation (stub)
+        #     On failure: log error, complete task with vertex fields null.
+        #     Rationale: stub failure must not block task completion.
+        #     In production with real Vertex, route to DLQ instead.
+        # ------------------------------------------------------------------
+        vertex_event_hash: str | None = None
+        vertex_round: int | None = None
+        vertex_finalised_at_dt = None
+
+        try:
+            # Attach executor confidence to review_result so event_builder can use it
+            review_result.executor_confidence = result.confidence
+
+            # Build the canonical event payload
+            event_payload = build_task_completed_event(
+                task_id=task_id_str,
+                task_type=task.task_type,
+                executor_output=result.output,
+                review_result=review_result,
+            )
+
+            # Publish to FoxMQ (stub: logs + returns True)
+            foxmq_publish(event_payload)
+
+            # Submit to Vertex (stub: SHA-256 + Redis round + timestamp)
+            receipt = vertex_submit(event_payload)
+
+            vertex_event_hash = receipt.event_hash
+            vertex_round = receipt.round
+            vertex_finalised_at_dt = datetime.fromisoformat(receipt.finalised_at)
+
+            logger.info(
+                "execute_task: Vertex finalised | task=%s hash=%s... round=%d stub=%s",
+                task_id, receipt.event_hash[:16], receipt.round, receipt.is_stub,
+            )
+
+        except Exception as exc:
+            # Consensus layer failure: log, continue to COMPLETED with null vertex fields
+            logger.error(
+                "execute_task: consensus layer error (non-blocking) | task=%s: %s",
+                task_id, exc,
+            )
+            await event_repo.insert_event(
+                session,
+                task_id=task_id,
+                event_type="consensus_layer_error",
+                payload={"error": str(exc)[:500]},
+            )
+
+        # ------------------------------------------------------------------
+        # 11. Mark COMPLETED
+        # ------------------------------------------------------------------
+        completed_at = datetime.now(timezone.utc)
+
+        await task_repo.update_task_status(
+            session,
+            task_id=task_id,
+            status="COMPLETED",
+            vertex_event_hash=vertex_event_hash,
+            vertex_round=vertex_round,
+            vertex_finalised_at=vertex_finalised_at_dt,
+            completed_at=completed_at,
+        )
         await event_repo.insert_event(
             session,
             task_id=task_id,
@@ -299,13 +387,15 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
                 "consensus": review_result.consensus,
                 "executor_model": result.model,
                 "executor_confidence": result.confidence,
+                "vertex_round": vertex_round,
+                "vertex_event_hash": vertex_event_hash,
             },
         )
         await session.commit()
 
         logger.info(
-            "execute_task COMPLETED | task=%s consensus=%s all_verified=%s",
-            task_id, review_result.consensus, review_result.all_verified,
+            "execute_task COMPLETED | task=%s consensus=%s vertex_round=%s",
+            task_id, review_result.consensus, vertex_round,
         )
 
         return {"task_id": task_id_str, "status": "COMPLETED"}

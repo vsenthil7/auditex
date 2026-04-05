@@ -1,7 +1,7 @@
 """
 Auditex -- Task routes.
 POST /api/v1/tasks        -- submit task (MT-002)
-GET  /api/v1/tasks/{id}   -- poll status (MT-003, MT-005)
+GET  /api/v1/tasks/{id}   -- poll status (MT-003, MT-005, MT-006)
 GET  /api/v1/tasks        -- list tasks paginated
 All routes require X-API-Key authentication.
 
@@ -9,6 +9,11 @@ Phase 4 changes to get_task():
   - executor field: deserialises executor_output_json blob (model, output, confidence, completed_at)
   - review field:   deserialises review_result_json blob (consensus, reviewers[], completed_at)
     Each reviewer entry: {model, verdict, confidence, commitment_verified}
+
+Phase 5 changes to get_task():
+  - vertex field: populated from vertex_event_hash, vertex_round, vertex_finalised_at ORM fields
+    {event_hash, round, finalised_at}
+  - FINALISING status supported in lifecycle
 """
 from __future__ import annotations
 
@@ -135,13 +140,13 @@ async def get_task(
     session=Depends(get_db_session),
 ):
     """
-    MT-003 / MT-005: Poll task status by UUID.
+    MT-003 / MT-005 / MT-006: Poll task status by UUID.
 
     Returns full task detail including:
       - executor: {model, output, confidence, completed_at}
       - review:   {consensus, reviewers: [{model, verdict, confidence, commitment_verified}], completed_at}
-      - vertex:   {event_hash, round}  (Phase 5)
-      - report_available: bool         (Phase 5)
+      - vertex:   {event_hash, round, finalised_at}  (Phase 5)
+      - report_available: bool
     """
     task = await task_repo.get_task(session, task_id)
     if task is None:
@@ -168,11 +173,14 @@ async def get_task(
             review_out = None
 
     # Vertex proof (Phase 5)
+    # Populated after FINALISING step completes in execution_worker.
+    # Shape: {event_hash: <64-char sha256 hex>, round: <int>, finalised_at: <ISO timestamp>}
     vertex_out = None
     if task.vertex_event_hash:
         vertex_out = {
             "event_hash": task.vertex_event_hash,
             "round": task.vertex_round,
+            "finalised_at": task.vertex_finalised_at.isoformat() if task.vertex_finalised_at else None,
         }
 
     return {
@@ -184,7 +192,7 @@ async def get_task(
         "executor": executor_out,
         "review": review_out,
         "vertex": vertex_out,
-        "report_available": False,  # Phase 5
+        "report_available": False,  # Phase 6
     }
 
 
