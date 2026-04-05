@@ -16,13 +16,14 @@ services:
       POSTGRES_DB: auditex
       ENVIRONMENT: development
       LOG_LEVEL: INFO
-      ANTHROPIC_API_KEY: placeholder
-      OPENAI_API_KEY: placeholder
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
       JWT_SECRET: dev_secret
       API_KEY_SALT: dev_salt
       FOXMQ_BROKER_URL: mqtt://foxmq:1883
       VERTEX_NODE_URL: http://localhost:8545
       VERTEX_PRIVATE_KEY: placeholder
+      PYTHONPATH: /app
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,19 +44,20 @@ services:
       POSTGRES_PASSWORD: auditex_dev_pw
       POSTGRES_DB: auditex
       ENVIRONMENT: development
-      ANTHROPIC_API_KEY: placeholder
-      OPENAI_API_KEY: placeholder
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
       JWT_SECRET: dev_secret
       API_KEY_SALT: dev_salt
       FOXMQ_BROKER_URL: mqtt://foxmq:1883
       VERTEX_NODE_URL: http://localhost:8545
       VERTEX_PRIVATE_KEY: placeholder
+      PYTHONPATH: /app
     depends_on:
       - redis
       - postgres
     volumes:
       - ./backend:/app
-    command: celery -A workers.celery_app worker --loglevel=info
+    command: celery -A workers.celery_app worker --loglevel=info -Q execution_queue,review_queue,reporting_queue,dlq
 
   postgres:
     image: postgres:16-alpine

@@ -17,6 +17,7 @@ from app.api.middleware.auth import require_api_key
 from app.models.task import TaskCreate, TaskListResponse, TaskResponse, TaskStatus
 from db.connection import get_db_session
 from db.repositories import task_repo
+from workers.execution_worker import execute_task as celery_execute_task
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,10 @@ async def submit_task(
     )
 
     logger.info("Task created: %s type=%s by=%s", task.id, task.task_type, submitted_by)
+
+    # Dispatch to Celery execution worker -- fire and forget
+    celery_execute_task.delay(str(task.id))
+    logger.info("Task %s dispatched to execution_queue", task.id)
 
     return {
         "task_id": str(task.id),

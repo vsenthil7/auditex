@@ -1,0 +1,2 @@
+powershell -ExecutionPolicy Bypass -File run.ps1 -cmd "git add -A"
+powershell -ExecutionPolicy Bypass -File run.ps1 -cmd "git commit -m 'docs: add PHASE-3-BUILD-PROMPT.md'"
