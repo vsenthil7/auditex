@@ -1,9 +1,9 @@
 """
 Auditex -- Execution worker.
-Celery task that executes a submitted task using the Claude executor.
+Celery task that executes a submitted task using the Claude executor,
+then runs the full review pipeline (Phase 4).
 
-Phase 3 lifecycle:  QUEUED -> EXECUTING -> COMPLETED | FAILED
-Phase 4 will insert: REVIEWING -> FINALISING between EXECUTING and COMPLETED.
+Phase 4 lifecycle:  QUEUED -> EXECUTING -> REVIEWING -> COMPLETED | FAILED
 
 The Celery task is synchronous (standard def) because Celery workers run in
 their own process. Async DB and AI calls are wrapped with asyncio.run().
@@ -48,12 +48,14 @@ def execute_task(self, task_id_str: str) -> dict:
 
 async def _execute_task_async(celery_task, task_id_str: str) -> dict:
     """
-    Async implementation of the execution logic.
+    Async implementation of the execution + review logic.
     Separated from the sync Celery wrapper to allow clean async/await usage.
     """
     # Import here to avoid circular imports at module load time
     from core.execution.claude_executor import execute_task as run_executor
     from core.execution.retry_handler import exponential_backoff, route_to_dlq
+    from core.review.coordinator import run_review_pipeline
+    from core.review.hash_commitment import SecurityViolationError
     from db.connection import AsyncSessionLocal
     from db.repositories import event_repo, task_repo
     from services.claude_service import ClaudeServiceError
@@ -164,27 +166,17 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
             return {"task_id": task_id_str, "status": "FAILED"}
 
         # ------------------------------------------------------------------
-        # 5. Execution succeeded -- mark COMPLETED (Phase 3: skip review)
+        # 5. Execution succeeded -- build executor output blob
         # ------------------------------------------------------------------
-        completed_at = datetime.now(timezone.utc)
+        execution_completed_at = datetime.now(timezone.utc)
 
-        # Build the executor JSON blob that GET /tasks/{id} returns
-        executor_output = {
+        executor_output_blob = {
             "model": result.model,
             "output": result.output,
             "confidence": result.confidence,
-            "completed_at": completed_at.isoformat(),
+            "completed_at": execution_completed_at.isoformat(),
         }
 
-        await task_repo.update_task_status(
-            session,
-            task_id=task_id,
-            status="COMPLETED",
-            executor_output_json=json.dumps(executor_output),
-            executor_confidence=result.confidence,
-            execution_completed_at=completed_at,
-            completed_at=completed_at,
-        )
         await event_repo.insert_event(
             session,
             task_id=task_id,
@@ -195,11 +187,125 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
                 "tokens_used": result.tokens_used,
             },
         )
+
+        # ------------------------------------------------------------------
+        # 6. Mark REVIEWING and persist executor output
+        # ------------------------------------------------------------------
+        await task_repo.update_task_status(
+            session,
+            task_id=task_id,
+            status="REVIEWING",
+            executor_output_json=json.dumps(executor_output_blob),
+            executor_confidence=result.confidence,
+            execution_completed_at=execution_completed_at,
+        )
+        await event_repo.insert_event(
+            session,
+            task_id=task_id,
+            event_type="task_review_started",
+            payload={"reviewers": ["gpt-4o", "gpt-4o", "claude-sonnet-4-6"]},
+        )
         await session.commit()
 
         logger.info(
-            "execute_task COMPLETED | task=%s model=%s confidence=%.3f tokens=%d",
-            task_id, result.model, result.confidence, result.tokens_used,
+            "execute_task: execution complete, starting review pipeline | task=%s "
+            "model=%s confidence=%.3f",
+            task_id, result.model, result.confidence,
+        )
+
+        # ------------------------------------------------------------------
+        # 7. Run review pipeline
+        # ------------------------------------------------------------------
+        try:
+            review_result = await run_review_pipeline(
+                task_id=task_id,
+                task_type=task.task_type,
+                payload=payload,
+                executor_output=result.output,
+            )
+
+        except SecurityViolationError as exc:
+            # Hash commitment mismatch -- log security violation and fail
+            logger.error(
+                "execute_task: SECURITY_VIOLATION in review pipeline | task=%s: %s",
+                task_id, exc,
+            )
+            await event_repo.insert_event(
+                session,
+                task_id=task_id,
+                event_type="security_violation",
+                payload={"reason": str(exc)[:1000]},
+            )
+            await route_to_dlq(
+                session, task_id, f"Security violation in review pipeline: {exc}"
+            )
+            await session.commit()
+            return {"task_id": task_id_str, "status": "FAILED"}
+
+        except Exception as exc:
+            # Review pipeline failure -- route to DLQ
+            logger.exception(
+                "execute_task: review pipeline failed | task=%s: %s", task_id, exc
+            )
+            await route_to_dlq(
+                session, task_id, f"Review pipeline error: {exc}"
+            )
+            await session.commit()
+            return {"task_id": task_id_str, "status": "FAILED"}
+
+        # ------------------------------------------------------------------
+        # 8. Build review result JSON and mark COMPLETED
+        # ------------------------------------------------------------------
+        completed_at = datetime.now(timezone.utc)
+
+        # Structured review blob exactly matching MT-005 expected response shape
+        review_result_blob = {
+            "consensus": review_result.consensus,
+            "reviewers": [
+                {
+                    "model": r.model,
+                    "verdict": r.verdict,
+                    "confidence": r.confidence,
+                    "commitment_verified": r.commitment_verified,
+                }
+                for r in review_result.reviewers
+            ],
+            "completed_at": review_result.completed_at,
+        }
+
+        await task_repo.update_task_status(
+            session,
+            task_id=task_id,
+            status="COMPLETED",
+            review_result_json=json.dumps(review_result_blob),
+            consensus_result=review_result.consensus,
+            completed_at=completed_at,
+        )
+        await event_repo.insert_event(
+            session,
+            task_id=task_id,
+            event_type="task_review_completed",
+            payload={
+                "consensus": review_result.consensus,
+                "all_verified": review_result.all_verified,
+                "verdicts": review_result.verdicts,
+            },
+        )
+        await event_repo.insert_event(
+            session,
+            task_id=task_id,
+            event_type="task_completed",
+            payload={
+                "consensus": review_result.consensus,
+                "executor_model": result.model,
+                "executor_confidence": result.confidence,
+            },
+        )
+        await session.commit()
+
+        logger.info(
+            "execute_task COMPLETED | task=%s consensus=%s all_verified=%s",
+            task_id, review_result.consensus, review_result.all_verified,
         )
 
         return {"task_id": task_id_str, "status": "COMPLETED"}

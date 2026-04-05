@@ -1,9 +1,14 @@
 """
 Auditex -- Task routes.
 POST /api/v1/tasks        -- submit task (MT-002)
-GET  /api/v1/tasks/{id}   -- poll status (MT-003)
+GET  /api/v1/tasks/{id}   -- poll status (MT-003, MT-005)
 GET  /api/v1/tasks        -- list tasks paginated
 All routes require X-API-Key authentication.
+
+Phase 4 changes to get_task():
+  - executor field: deserialises executor_output_json blob (model, output, confidence, completed_at)
+  - review field:   deserialises review_result_json blob (consensus, reviewers[], completed_at)
+    Each reviewer entry: {model, verdict, confidence, commitment_verified}
 """
 from __future__ import annotations
 
@@ -33,12 +38,7 @@ def _orm_to_response(task) -> TaskResponse:
     executor = None
     if task.executor_output_json:
         try:
-            executor = {
-                "model": task.executor_agent_id and str(task.executor_agent_id),
-                "output": json.loads(task.executor_output_json),
-                "confidence": float(task.executor_confidence) if task.executor_confidence else None,
-                "completed_at": task.execution_completed_at.isoformat() if task.execution_completed_at else None,
-            }
+            executor = json.loads(task.executor_output_json)
         except Exception:
             executor = {"raw": task.executor_output_json}
 
@@ -49,10 +49,6 @@ def _orm_to_response(task) -> TaskResponse:
             review = json.loads(task.review_result_json)
         except Exception:
             review = {"raw": task.review_result_json}
-    if task.consensus_result and review is None:
-        review = {"consensus": task.consensus_result}
-    elif task.consensus_result and review is not None:
-        review["consensus"] = task.consensus_result
 
     # Vertex proof if present
     vertex = None
@@ -63,7 +59,6 @@ def _orm_to_response(task) -> TaskResponse:
             "finalised_at": task.vertex_finalised_at.isoformat() if task.vertex_finalised_at else None,
         }
 
-    # Extract workflow_id from metadata if not stored directly
     workflow_id = task.workflow_id
 
     return TaskResponse(
@@ -140,8 +135,13 @@ async def get_task(
     session=Depends(get_db_session),
 ):
     """
-    MT-003: Poll task status by UUID.
-    Returns full task detail including executor, review, vertex, and report_available.
+    MT-003 / MT-005: Poll task status by UUID.
+
+    Returns full task detail including:
+      - executor: {model, output, confidence, completed_at}
+      - review:   {consensus, reviewers: [{model, verdict, confidence, commitment_verified}], completed_at}
+      - vertex:   {event_hash, round}  (Phase 5)
+      - report_available: bool         (Phase 5)
     """
     task = await task_repo.get_task(session, task_id)
     if task is None:
@@ -150,7 +150,7 @@ async def get_task(
             detail=f"Task {task_id} not found.",
         )
 
-    # Build MT-003 expected response shape
+    # Executor output -- deserialise the JSON blob stored by the worker
     executor_out = None
     if task.executor_output_json:
         try:
@@ -158,6 +158,8 @@ async def get_task(
         except Exception:
             executor_out = None
 
+    # Review result -- deserialise the JSON blob stored by the worker
+    # Shape: {consensus, reviewers: [{model, verdict, confidence, commitment_verified}], completed_at}
     review_out = None
     if task.review_result_json:
         try:
@@ -165,6 +167,7 @@ async def get_task(
         except Exception:
             review_out = None
 
+    # Vertex proof (Phase 5)
     vertex_out = None
     if task.vertex_event_hash:
         vertex_out = {
