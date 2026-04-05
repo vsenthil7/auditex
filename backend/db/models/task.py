@@ -7,7 +7,7 @@ Tasks progress through a strict lifecycle: QUEUED -> EXECUTING -> REVIEWING
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -87,6 +87,11 @@ class Task(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         DateTime(timezone=True), nullable=True
     )
     failure_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Reporting (Phase 6)
+    report_available: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     # Relationships
     executor_agent = relationship(

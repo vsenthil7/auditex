@@ -5,7 +5,7 @@ Defines the Celery app, queue topology, and serialisation settings.
 Queues:
   execution_queue  -- Claude task execution
   review_queue     -- GPT-4o / multi-model review (Phase 4)
-  reporting_queue  -- PoC report generation (Phase 5)
+  reporting_queue  -- PoC report generation (Phase 6)
   dlq              -- Dead letter queue for permanently failed tasks
 
 Usage:
@@ -33,6 +33,7 @@ celery_app = Celery(
     backend=REDIS_URL,
     include=[
         "workers.execution_worker",
+        "workers.reporting_worker",
     ],
 )
 

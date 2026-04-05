@@ -2,9 +2,11 @@
 Auditex -- Execution worker.
 Celery task that executes a submitted task using the Claude executor,
 then runs the full review pipeline, then submits to the Vertex consensus
-layer (stub in Phase 5), then marks COMPLETED.
+layer (stub in Phase 5), then marks COMPLETED, then dispatches the
+reporting task (Phase 6).
 
-Phase 5 lifecycle:  QUEUED -> EXECUTING -> REVIEWING -> FINALISING -> COMPLETED | FAILED
+Phase 6 lifecycle:  QUEUED -> EXECUTING -> REVIEWING -> FINALISING -> COMPLETED
+                    -> (async) reporting_worker.generate_poc_report
 
 The Celery task is synchronous (standard def) because Celery workers run in
 their own process. Async DB and AI calls are wrapped with asyncio.run().
@@ -397,5 +399,21 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
             "execute_task COMPLETED | task=%s consensus=%s vertex_round=%s",
             task_id, review_result.consensus, vertex_round,
         )
+
+        # ------------------------------------------------------------------
+        # 12. Dispatch reporting task (Phase 6)
+        #     Fire-and-forget: reporting runs on reporting_queue asynchronously.
+        #     This import is deferred to avoid circular imports at module load.
+        # ------------------------------------------------------------------
+        try:
+            from workers.reporting_worker import generate_poc_report as celery_report_task
+            celery_report_task.delay(task_id_str)
+            logger.info("execute_task: reporting task dispatched | task=%s", task_id)
+        except Exception as exc:
+            # Reporting dispatch failure must never block task completion.
+            logger.error(
+                "execute_task: failed to dispatch reporting task | task=%s: %s",
+                task_id, exc,
+            )
 
         return {"task_id": task_id_str, "status": "COMPLETED"}

@@ -1,7 +1,7 @@
 """
 Auditex -- Task routes.
 POST /api/v1/tasks        -- submit task (MT-002)
-GET  /api/v1/tasks/{id}   -- poll status (MT-003, MT-005, MT-006)
+GET  /api/v1/tasks/{id}   -- poll status (MT-003, MT-005, MT-006, MT-007)
 GET  /api/v1/tasks        -- list tasks paginated
 All routes require X-API-Key authentication.
 
@@ -14,6 +14,9 @@ Phase 5 changes to get_task():
   - vertex field: populated from vertex_event_hash, vertex_round, vertex_finalised_at ORM fields
     {event_hash, round, finalised_at}
   - FINALISING status supported in lifecycle
+
+Phase 6 changes to get_task():
+  - report_available: reads task.report_available boolean column (was hardcoded False)
 """
 from __future__ import annotations
 
@@ -75,7 +78,7 @@ def _orm_to_response(task) -> TaskResponse:
         executor=executor,
         review=review,
         vertex=vertex,
-        report_available=task.report is not None if hasattr(task, "report") else False,
+        report_available=task.report_available,
     )
 
 
@@ -140,13 +143,13 @@ async def get_task(
     session=Depends(get_db_session),
 ):
     """
-    MT-003 / MT-005 / MT-006: Poll task status by UUID.
+    MT-003 / MT-005 / MT-006 / MT-007: Poll task status by UUID.
 
     Returns full task detail including:
       - executor: {model, output, confidence, completed_at}
       - review:   {consensus, reviewers: [{model, verdict, confidence, commitment_verified}], completed_at}
       - vertex:   {event_hash, round, finalised_at}  (Phase 5)
-      - report_available: bool
+      - report_available: bool  (Phase 6 -- true once reporting_worker completes)
     """
     task = await task_repo.get_task(session, task_id)
     if task is None:
@@ -164,7 +167,6 @@ async def get_task(
             executor_out = None
 
     # Review result -- deserialise the JSON blob stored by the worker
-    # Shape: {consensus, reviewers: [{model, verdict, confidence, commitment_verified}], completed_at}
     review_out = None
     if task.review_result_json:
         try:
@@ -173,8 +175,6 @@ async def get_task(
             review_out = None
 
     # Vertex proof (Phase 5)
-    # Populated after FINALISING step completes in execution_worker.
-    # Shape: {event_hash: <64-char sha256 hex>, round: <int>, finalised_at: <ISO timestamp>}
     vertex_out = None
     if task.vertex_event_hash:
         vertex_out = {
@@ -192,7 +192,7 @@ async def get_task(
         "executor": executor_out,
         "review": review_out,
         "vertex": vertex_out,
-        "report_available": False,  # Phase 6
+        "report_available": task.report_available,  # Phase 6: real column value
     }
 
 

@@ -1,6 +1,6 @@
 """
 Auditex -- FastAPI application factory.
-Phase 2: registers all v1 routers, middleware, and lifespan events.
+Phase 6: registers all v1 routers, middleware, and lifespan events.
 """
 import logging
 import subprocess
@@ -65,11 +65,12 @@ app.add_middleware(
 )
 
 # --- Register routers ---
-from app.api.v1 import health, tasks, agents  # noqa: E402
+from app.api.v1 import health, tasks, agents, reports  # noqa: E402
 
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(agents.router, prefix="/api/v1")
+app.include_router(reports.router, prefix="/api/v1")
 
 
 # Root redirect to docs
