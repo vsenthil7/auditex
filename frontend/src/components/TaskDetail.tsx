@@ -34,6 +34,19 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
   )
 }
 
+function ConfidenceBar({ value }: { value: number }) {
+  const pct = Math.round(value * 100)
+  const colour = pct >= 80 ? 'bg-green-500' : pct >= 60 ? 'bg-yellow-400' : 'bg-red-400'
+  return (
+    <div className="flex items-center gap-2 w-full">
+      <div className="flex-1 bg-gray-200 rounded-full h-1.5 overflow-hidden">
+        <div className={`${colour} h-1.5 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-xs font-mono text-gray-600 w-9 text-right">{pct}%</span>
+    </div>
+  )
+}
+
 export function TaskDetail() {
   const tasks          = useTaskStore((s) => s.tasks)
   const selectedTaskId = useTaskStore((s) => s.selectedTaskId)
@@ -82,6 +95,9 @@ export function TaskDetail() {
     )
   }
 
+  const isFailed    = task.status === 'FAILED' || task.status === 'ESCALATED'
+  const isCompleted = task.status === 'COMPLETED'
+
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-y-auto">
       {/* Header */}
@@ -97,45 +113,67 @@ export function TaskDetail() {
 
       <div className="px-6 py-4 space-y-6">
 
-        {/* Lifecycle Timeline */}
+        {/* ── Lifecycle Timeline ─────────────────────────────────────── */}
         <div>
           <SectionHeader title="Lifecycle" />
           <div className="flex items-center gap-1 mt-2">
             {STAGES.map((stage, i) => {
-              const done   = STATUS_ORDER[task.status] > STATUS_ORDER[stage.status]
-              const active = task.status === stage.status
-              const future = STATUS_ORDER[task.status] < STATUS_ORDER[stage.status]
+              const currentOrder = STATUS_ORDER[task.status]
+              const stageOrder   = STATUS_ORDER[stage.status]
+              // For COMPLETED tasks, all dots including the final one are green
+              const done   = isCompleted ? true : currentOrder > stageOrder
+              const active = !isCompleted && task.status === stage.status
+              const future = !isCompleted && currentOrder < stageOrder
+
               return (
                 <div key={stage.status} className="flex items-center flex-1">
                   <div className="flex flex-col items-center flex-1">
                     <div className={`w-3 h-3 rounded-full border-2 transition-all
-                      ${done   ? 'bg-green-500 border-green-500' : ''}
-                      ${active ? 'bg-blue-500 border-blue-500 ring-2 ring-blue-200' : ''}
-                      ${future ? 'bg-white border-gray-300' : ''}`}
+                      ${isFailed && active ? 'bg-red-500 border-red-500 ring-2 ring-red-200' : ''}
+                      ${done && !isFailed  ? 'bg-green-500 border-green-500' : ''}
+                      ${active && !isFailed ? 'bg-blue-500 border-blue-500 ring-2 ring-blue-200' : ''}
+                      ${future             ? 'bg-white border-gray-300' : ''}`}
                     />
-                    <span className={`text-xs mt-1 ${future ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <span className={`text-xs mt-1
+                      ${future    ? 'text-gray-300' :
+                        isFailed && active ? 'text-red-500' :
+                        'text-gray-600'}`}>
                       {stage.label}
                     </span>
                   </div>
                   {i < STAGES.length - 1 && (
-                    <div className={`h-0.5 flex-1 mb-4 ${done || active ? 'bg-blue-300' : 'bg-gray-200'}`} />
+                    <div className={`h-0.5 flex-1 mb-4
+                      ${isFailed ? 'bg-red-200' :
+                        done || active ? 'bg-green-300' :
+                        'bg-gray-200'}`}
+                    />
                   )}
                 </div>
               )
             })}
           </div>
-          {(task.status === 'FAILED' || task.status === 'ESCALATED') && (
-            <p className="mt-2 text-xs text-red-600">{task.error_message ?? 'Task did not complete.'}</p>
+
+          {/* Failed / escalated reason */}
+          {isFailed && (
+            <div className="mt-3 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+              <p className="text-xs font-semibold text-red-700 mb-1">Task Failed</p>
+              <p className="text-xs text-red-600">{task.error_message ?? 'Task did not complete successfully.'}</p>
+            </div>
           )}
         </div>
 
-        {/* Executor Output — API field: task.executor */}
+        {/* ── Executor Output ────────────────────────────────────────── */}
         {task.executor && (
           <div>
             <SectionHeader title="Executor Output" />
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <KV k="Model"          v={task.executor.model} />
-              <KV k="Confidence"     v={`${((task.executor.confidence ?? 0) * 100).toFixed(1)}%`} />
+              <div className="flex gap-2 text-sm">
+                <span className="text-gray-500 w-40 shrink-0">Confidence</span>
+                <div className="flex-1">
+                  <ConfidenceBar value={task.executor.confidence ?? 0} />
+                </div>
+              </div>
               <KV k="Recommendation" v={task.executor.recommendation ?? '—'} />
               {task.executor.reasoning && <KV k="Reasoning" v={task.executor.reasoning} />}
               {task.executor.flags && task.executor.flags.length > 0 && (
@@ -145,16 +183,25 @@ export function TaskDetail() {
           </div>
         )}
 
-        {/* Review Panel — API field: task.review.reviewers[] */}
+        {/* ── Review Panel ───────────────────────────────────────────── */}
         {task.review && task.review.reviewers && task.review.reviewers.length > 0 && (
           <div>
             <SectionHeader title="Review Panel" />
             {task.review.consensus && (
-              <p className="text-xs text-gray-500 mb-2">Consensus: <span className="font-medium text-gray-700">{task.review.consensus}</span></p>
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-xs text-gray-500">Consensus:</span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full
+                  ${task.review.consensus.includes('APPROVE') ? 'bg-green-100 text-green-700' :
+                    task.review.consensus.includes('REJECT')  ? 'bg-red-100 text-red-700' :
+                    'bg-yellow-100 text-yellow-700'}`}>
+                  {task.review.consensus}
+                </span>
+              </div>
             )}
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-2">
               {task.review.reviewers.map((r, i) => (
-                <div key={i} className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-1">
+                <div key={i} className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-2">
+                  {/* Reviewer header: model + verdict */}
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-gray-700">{r.model}</span>
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full
@@ -164,12 +211,20 @@ export function TaskDetail() {
                       {r.verdict}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500 font-mono break-all">
-                    {r.commitment_hash ? r.commitment_hash.slice(0, 24) + '…' : 'No hash'}
-                  </div>
-                  <div className="text-xs">
+                  {/* Confidence bar — explicit per reviewer */}
+                  {r.confidence !== undefined && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-0.5">Confidence</p>
+                      <ConfidenceBar value={r.confidence} />
+                    </div>
+                  )}
+                  {/* Commitment hash + verification */}
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400 font-mono">
+                      {r.commitment_hash ? r.commitment_hash.slice(0, 20) + '…' : 'No hash'}
+                    </span>
                     <span className={r.commitment_verified ? 'text-green-600' : 'text-red-500'}>
-                      {r.commitment_verified ? '✓ Commitment verified' : '✗ Not verified'}
+                      {r.commitment_verified ? '✓ Verified' : '✗ Unverified'}
                     </span>
                   </div>
                   {r.notes && <p className="text-xs text-gray-500 italic">{r.notes}</p>}
@@ -179,7 +234,7 @@ export function TaskDetail() {
           </div>
         )}
 
-        {/* Vertex Proof — API field: task.vertex */}
+        {/* ── Vertex Proof ───────────────────────────────────────────── */}
         {task.vertex && (
           <div>
             <SectionHeader title="Vertex Proof" />
@@ -191,8 +246,8 @@ export function TaskDetail() {
           </div>
         )}
 
-        {/* Report Section */}
-        {task.status === 'COMPLETED' && (
+        {/* ── Report Section ─────────────────────────────────────────── */}
+        {isCompleted && (
           <div>
             <SectionHeader title="Report" />
 
@@ -220,9 +275,12 @@ export function TaskDetail() {
                     <p className="text-xs text-gray-500 mb-1">Recommendation</p>
                     <p className="font-medium text-gray-800">{report.overall_recommendation}</p>
                   </div>
-                  <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 text-center">
+                  <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 text-center min-w-[80px]">
                     <p className="text-xs text-gray-500 mb-1">Confidence</p>
-                    <p className="text-2xl font-bold text-blue-600">
+                    <p className={`text-2xl font-bold
+                      ${report.confidence_score >= 0.8 ? 'text-green-600' :
+                        report.confidence_score >= 0.6 ? 'text-yellow-500' :
+                        'text-red-500'}`}>
                       {(report.confidence_score * 100).toFixed(0)}%
                     </p>
                   </div>
