@@ -17,39 +17,76 @@ const STATUS_ORDER: Record<string, number> = {
   FAILED: 5, ESCALATED: 5,
 }
 
-function SectionHeader({ title }: { title: string }) {
+// ── Collapsible Section ──────────────────────────────────────────────────────
+function Section({
+  title, badge, badgeColour, defaultOpen = false, children,
+}: {
+  title: string
+  badge?: string
+  badgeColour?: string
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
-    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2 border-b border-gray-100 pb-1">
-      {title}
-    </h3>
-  )
-}
-
-function KV({ k, v }: { k: string; v: React.ReactNode }) {
-  return (
-    <div className="flex gap-2 text-sm">
-      <span className="text-gray-500 w-40 shrink-0">{k}</span>
-      <span className="text-gray-800 font-mono break-all">{v}</span>
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{title}</span>
+          {badge && (
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeColour ?? 'bg-gray-100 text-gray-600'}`}>
+              {badge}
+            </span>
+          )}
+        </div>
+        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && <div className="px-4 py-4 space-y-3 bg-white">{children}</div>}
     </div>
   )
 }
 
-function ConfidenceBar({ value }: { value: number }) {
-  const pct = Math.round(value * 100)
-  const colour = pct >= 80 ? 'bg-green-500' : pct >= 60 ? 'bg-yellow-400' : 'bg-red-400'
+// ── KV row ───────────────────────────────────────────────────────────────────
+function KV({ k, v, mono = false }: { k: string; v: React.ReactNode; mono?: boolean }) {
   return (
-    <div className="flex items-center gap-2 w-full">
+    <div className="flex gap-2 text-sm">
+      <span className="text-gray-400 w-36 shrink-0 font-medium">{k}</span>
+      <span className={`text-gray-800 break-all flex-1 ${mono ? 'font-mono text-xs' : ''}`}>{v}</span>
+    </div>
+  )
+}
+
+// ── Confidence bar ───────────────────────────────────────────────────────────
+function ConfBar({ value }: { value: number }) {
+  const pct = Math.round(value * 100)
+  const col = pct >= 80 ? 'bg-green-500' : pct >= 60 ? 'bg-yellow-400' : 'bg-red-400'
+  return (
+    <div className="flex items-center gap-2">
       <div className="flex-1 bg-gray-200 rounded-full h-1.5 overflow-hidden">
-        <div className={`${colour} h-1.5 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+        <div className={`${col} h-1.5 rounded-full`} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-xs font-mono text-gray-600 w-9 text-right">{pct}%</span>
     </div>
   )
 }
 
+// ── Recommendation badge ──────────────────────────────────────────────────────
+function RecBadge({ rec }: { rec: string }) {
+  const colour =
+    rec === 'APPROVE'                ? 'bg-green-100 text-green-700' :
+    rec === 'REJECT'                 ? 'bg-red-100 text-red-700' :
+    rec === 'REQUEST_AMENDMENTS'     ? 'bg-orange-100 text-orange-700' :
+    rec === 'REQUEST_ADDITIONAL_INFO'? 'bg-yellow-100 text-yellow-700' :
+    'bg-gray-100 text-gray-600'
+  return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${colour}`}>{rec || '—'}</span>
+}
+
 export function TaskDetail() {
-  const tasks          = useTaskStore((s) => s.tasks)
-  const selectedTaskId = useTaskStore((s) => s.selectedTaskId)
+  const tasks          = useTaskStore(s => s.tasks)
+  const selectedTaskId = useTaskStore(s => s.selectedTaskId)
   const task           = selectedTaskId ? tasks[selectedTaskId] : null
 
   const [report, setReport]               = useState<PoCReport | null>(null)
@@ -58,17 +95,15 @@ export function TaskDetail() {
   const [openArticle, setOpenArticle]     = useState<string | null>(null)
 
   useEffect(() => {
-    setReport(null)
-    setReportError(null)
-    setOpenArticle(null)
+    setReport(null); setReportError(null); setOpenArticle(null)
   }, [selectedTaskId])
 
   useEffect(() => {
     if (!task || !task.report_available || report) return
     setReportLoading(true)
     getReport(task.task_id)
-      .then((r) => { setReport(r); setReportLoading(false) })
-      .catch((e) => { setReportError(String(e)); setReportLoading(false) })
+      .then(r => { setReport(r); setReportLoading(false) })
+      .catch(e => { setReportError(String(e)); setReportLoading(false) })
   }, [task?.report_available, task?.task_id])
 
   async function handleExport() {
@@ -78,13 +113,9 @@ export function TaskDetail() {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
-      a.href     = url
-      a.download = `auditex-report-${task.task_id}.json`
-      a.click()
+      a.href = url; a.download = `auditex-report-${task.task_id}.json`; a.click()
       URL.revokeObjectURL(url)
-    } catch (e) {
-      alert(`Export failed: ${e}`)
-    }
+    } catch (e) { alert(`Export failed: ${e}`) }
   }
 
   if (!task) {
@@ -97,55 +128,56 @@ export function TaskDetail() {
 
   const isFailed    = task.status === 'FAILED' || task.status === 'ESCALATED'
   const isCompleted = task.status === 'COMPLETED'
+  const currentOrder = STATUS_ORDER[task.status]
+
+  // Extract recommendation from executor output for the header badge
+  const execRec = (task.executor as any)?.recommendation ?? (task.executor as any)?.output?.recommendation ?? ''
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-y-auto">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs text-gray-400 font-mono">{task.task_id}</p>
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-y-auto" data-testid="task-detail">
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs text-gray-400 font-mono truncate">{task.task_id}</p>
           <p className="text-base font-semibold text-gray-800 capitalize mt-0.5">
             {task.task_type.replace(/_/g, ' ')}
           </p>
+          {execRec && (
+            <div className="mt-1.5"><RecBadge rec={execRec} /></div>
+          )}
         </div>
         <StatusBadge status={task.status} />
       </div>
 
-      <div className="px-6 py-4 space-y-6">
+      <div className="px-4 py-4 space-y-3">
 
-        {/* ── Lifecycle Timeline ─────────────────────────────────────── */}
-        <div>
-          <SectionHeader title="Lifecycle" />
-          <div className="flex items-center gap-1 mt-2">
+        {/* ── Lifecycle Timeline ─────────────────────────────────────────── */}
+        <div className="px-2 py-3">
+          <div className="flex items-center gap-0 mt-1">
             {STAGES.map((stage, i) => {
-              const currentOrder = STATUS_ORDER[task.status]
-              const stageOrder   = STATUS_ORDER[stage.status]
-              // For COMPLETED tasks, all dots including the final one are green
-              const done   = isCompleted ? true : currentOrder > stageOrder
+              const done   = isCompleted ? true : currentOrder > STATUS_ORDER[stage.status]
               const active = !isCompleted && task.status === stage.status
-              const future = !isCompleted && currentOrder < stageOrder
-
+              const future = !isCompleted && currentOrder < STATUS_ORDER[stage.status]
               return (
                 <div key={stage.status} className="flex items-center flex-1">
                   <div className="flex flex-col items-center flex-1">
                     <div className={`w-3 h-3 rounded-full border-2 transition-all
-                      ${isFailed && active ? 'bg-red-500 border-red-500 ring-2 ring-red-200' : ''}
-                      ${done && !isFailed  ? 'bg-green-500 border-green-500' : ''}
+                      ${isFailed && active  ? 'bg-red-500 border-red-500 ring-2 ring-red-200' : ''}
+                      ${done && !isFailed   ? 'bg-green-500 border-green-500' : ''}
                       ${active && !isFailed ? 'bg-blue-500 border-blue-500 ring-2 ring-blue-200' : ''}
                       ${future             ? 'bg-white border-gray-300' : ''}`}
                     />
-                    <span className={`text-xs mt-1
-                      ${future    ? 'text-gray-300' :
-                        isFailed && active ? 'text-red-500' :
-                        'text-gray-600'}`}>
+                    <span className={`text-xs mt-1 ${
+                      future ? 'text-gray-300' :
+                      isFailed && active ? 'text-red-500' : 'text-gray-600'}`}>
                       {stage.label}
                     </span>
                   </div>
                   {i < STAGES.length - 1 && (
-                    <div className={`h-0.5 flex-1 mb-4
-                      ${isFailed ? 'bg-red-200' :
-                        done || active ? 'bg-green-300' :
-                        'bg-gray-200'}`}
+                    <div className={`h-0.5 flex-1 mb-4 ${
+                      isFailed ? 'bg-red-200' :
+                      done || active ? 'bg-green-300' : 'bg-gray-200'}`}
                     />
                   )}
                 </div>
@@ -153,7 +185,6 @@ export function TaskDetail() {
             })}
           </div>
 
-          {/* Failed / escalated reason */}
           {isFailed && (
             <div className="mt-3 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
               <p className="text-xs font-semibold text-red-700 mb-1">Task Failed</p>
@@ -162,68 +193,98 @@ export function TaskDetail() {
           )}
         </div>
 
-        {/* ── Executor Output ────────────────────────────────────────── */}
-        {task.executor && (
-          <div>
-            <SectionHeader title="Executor Output" />
-            <div className="space-y-1.5">
-              <KV k="Model"          v={task.executor.model} />
-              <div className="flex gap-2 text-sm">
-                <span className="text-gray-500 w-40 shrink-0">Confidence</span>
-                <div className="flex-1">
-                  <ConfidenceBar value={task.executor.confidence ?? 0} />
-                </div>
-              </div>
-              <KV k="Recommendation" v={task.executor.recommendation ?? '—'} />
-              {task.executor.reasoning && <KV k="Reasoning" v={task.executor.reasoning} />}
-              {task.executor.flags && task.executor.flags.length > 0 && (
-                <KV k="Flags" v={task.executor.flags.join(', ')} />
-              )}
-            </div>
-          </div>
-        )}
+        {/* ── Step 1: Submission Input ────────────────────────────────────── */}
+        <Section title="Step 1 — Submission" badge="Input" badgeColour="bg-blue-100 text-blue-700">
+          <p className="text-xs text-gray-400 mb-2">What was submitted to the pipeline</p>
+          <KV k="Task ID"   v={task.task_id} mono />
+          <KV k="Task Type" v={task.task_type} />
+          <KV k="Submitted" v={new Date(task.created_at).toLocaleString()} />
+          {task.workflow_id && <KV k="Workflow ID" v={task.workflow_id} mono />}
+        </Section>
 
-        {/* ── Review Panel ───────────────────────────────────────────── */}
-        {task.review && task.review.reviewers && task.review.reviewers.length > 0 && (
-          <div>
-            <SectionHeader title="Review Panel" />
-            {task.review.consensus && (
-              <div className="mb-3 flex items-center gap-2">
-                <span className="text-xs text-gray-500">Consensus:</span>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full
-                  ${task.review.consensus.includes('APPROVE') ? 'bg-green-100 text-green-700' :
-                    task.review.consensus.includes('REJECT')  ? 'bg-red-100 text-red-700' :
-                    'bg-yellow-100 text-yellow-700'}`}>
-                  {task.review.consensus}
-                </span>
+        {/* ── Step 2: Executor Output ─────────────────────────────────────── */}
+        {task.executor && (
+          <Section
+            title="Step 2 — AI Executor"
+            badge={execRec || undefined}
+            badgeColour={
+              execRec === 'APPROVE' ? 'bg-green-100 text-green-700' :
+              execRec === 'REJECT'  ? 'bg-red-100 text-red-700' :
+              execRec ? 'bg-yellow-100 text-yellow-700' : undefined
+            }
+          >
+            <p className="text-xs text-gray-400 mb-2">Claude Sonnet executed the task and returned a structured verdict</p>
+            <KV k="Model" v={task.executor.model} mono />
+            <div className="flex gap-2 text-sm">
+              <span className="text-gray-400 w-36 shrink-0 font-medium">Confidence</span>
+              <div className="flex-1"><ConfBar value={task.executor.confidence ?? 0} /></div>
+            </div>
+            <div className="flex gap-2 text-sm items-center">
+              <span className="text-gray-400 w-36 shrink-0 font-medium">Recommendation</span>
+              <RecBadge rec={execRec} />
+            </div>
+            {task.executor.reasoning && (
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Reasoning</p>
+                <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 leading-relaxed">{task.executor.reasoning}</p>
               </div>
             )}
-            <div className="grid grid-cols-1 gap-2">
+            {/* Show full executor output fields */}
+            {task.executor.output && Object.keys(task.executor.output).length > 0 && (
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Full Output</p>
+                <pre className="text-xs text-gray-700 bg-gray-50 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">
+                  {JSON.stringify(task.executor.output, null, 2)}
+                </pre>
+              </div>
+            )}
+          </Section>
+        )}
+
+        {/* ── Step 3: Review Panel ────────────────────────────────────────── */}
+        {task.review && task.review.reviewers && task.review.reviewers.length > 0 && (
+          <Section
+            title="Step 3 — Review Panel"
+            badge={task.review.consensus}
+            badgeColour={
+              task.review.consensus?.includes('APPROVE') ? 'bg-green-100 text-green-700' :
+              task.review.consensus?.includes('REJECT')  ? 'bg-red-100 text-red-700' :
+              'bg-yellow-100 text-yellow-700'
+            }
+          >
+            <p className="text-xs text-gray-400 mb-2">
+              3 independent AI reviewers each assessed the executor's output and cast a verified vote
+            </p>
+
+            <div className="space-y-2">
               {task.review.reviewers.map((r, i) => (
                 <div key={i} className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-2">
-                  {/* Reviewer header: model + verdict */}
+                  {/* Reviewer header */}
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-700">{r.model}</span>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-gray-700">{r.model}</span>
+                      <span className="text-xs text-gray-400">Reviewer {i + 1}</span>
+                    </div>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full
                       ${r.verdict === 'APPROVED' ? 'bg-green-100 text-green-700' :
                         r.verdict === 'REJECTED'  ? 'bg-red-100 text-red-700' :
                         'bg-yellow-100 text-yellow-700'}`}>
                       {r.verdict}
                     </span>
                   </div>
-                  {/* Confidence bar — explicit per reviewer */}
+                  {/* Confidence */}
                   {r.confidence !== undefined && (
                     <div>
                       <p className="text-xs text-gray-400 mb-0.5">Confidence</p>
-                      <ConfidenceBar value={r.confidence} />
+                      <ConfBar value={r.confidence} />
                     </div>
                   )}
-                  {/* Commitment hash + verification */}
+                  {/* Commitment proof */}
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400 font-mono">
-                      {r.commitment_hash ? r.commitment_hash.slice(0, 20) + '…' : 'No hash'}
+                    <span className="text-gray-400 font-mono truncate max-w-[200px]">
+                      {r.commitment_hash ? r.commitment_hash.slice(0, 24) + '…' : 'No hash'}
                     </span>
-                    <span className={r.commitment_verified ? 'text-green-600' : 'text-red-500'}>
+                    <span className={`font-medium ${r.commitment_verified ? 'text-green-600' : 'text-red-500'}`}>
                       {r.commitment_verified ? '✓ Verified' : '✗ Unverified'}
                     </span>
                   </div>
@@ -231,26 +292,29 @@ export function TaskDetail() {
                 </div>
               ))}
             </div>
-          </div>
+          </Section>
         )}
 
-        {/* ── Vertex Proof ───────────────────────────────────────────── */}
+        {/* ── Step 4: Vertex Consensus Proof ──────────────────────────────── */}
         {task.vertex && (
-          <div>
-            <SectionHeader title="Vertex Proof" />
-            <div className="space-y-1">
-              <KV k="Event Hash"   v={task.vertex.event_hash} />
-              <KV k="Round"        v={String(task.vertex.round)} />
-              <KV k="Finalised At" v={new Date(task.vertex.finalised_at).toLocaleString()} />
-            </div>
-          </div>
+          <Section title="Step 4 — Vertex Consensus" badge="Immutable" badgeColour="bg-purple-100 text-purple-700">
+            <p className="text-xs text-gray-400 mb-2">
+              The final verdict was hashed and anchored to the Vertex consensus layer for tamper-proof audit trail
+            </p>
+            <KV k="Event Hash"   v={task.vertex.event_hash} mono />
+            <KV k="Round"        v={String(task.vertex.round)} />
+            <KV k="Finalised At" v={new Date(task.vertex.finalised_at).toLocaleString()} />
+          </Section>
         )}
 
-        {/* ── Report Section ─────────────────────────────────────────── */}
+        {/* ── Step 5: Report ──────────────────────────────────────────────── */}
         {isCompleted && (
-          <div>
-            <SectionHeader title="Report" />
-
+          <Section
+            title="Step 5 — Compliance Report"
+            badge={task.report_available ? 'Ready' : 'Generating...'}
+            badgeColour={task.report_available ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}
+            defaultOpen={true}
+          >
             {!task.report_available && (
               <p className="text-sm text-gray-400 animate-pulse">Generating report…</p>
             )}
@@ -263,32 +327,34 @@ export function TaskDetail() {
 
             {report && (
               <div className="space-y-4">
-                <div className="rounded-lg bg-blue-50 border border-blue-100 p-4">
+                {/* Plain English Summary */}
+                <div className="rounded-lg bg-blue-50 border border-blue-100 p-4" data-testid="plain-english-summary">
                   <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Plain English Summary</p>
                   <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">
                     {report.plain_english_summary}
                   </pre>
                 </div>
 
-                <div className="flex gap-4 text-sm">
+                {/* Key metrics */}
+                <div className="flex gap-3 text-sm">
                   <div className="flex-1 rounded-lg bg-gray-50 border border-gray-100 p-3">
-                    <p className="text-xs text-gray-500 mb-1">Recommendation</p>
-                    <p className="font-medium text-gray-800">{report.overall_recommendation}</p>
+                    <p className="text-xs text-gray-400 mb-1">Recommendation</p>
+                    <RecBadge rec={report.overall_recommendation} />
                   </div>
                   <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 text-center min-w-[80px]">
-                    <p className="text-xs text-gray-500 mb-1">Confidence</p>
+                    <p className="text-xs text-gray-400 mb-1">Confidence</p>
                     <p className={`text-2xl font-bold
                       ${report.confidence_score >= 0.8 ? 'text-green-600' :
-                        report.confidence_score >= 0.6 ? 'text-yellow-500' :
-                        'text-red-500'}`}>
+                        report.confidence_score >= 0.6 ? 'text-yellow-500' : 'text-red-500'}`}>
                       {(report.confidence_score * 100).toFixed(0)}%
                     </p>
                   </div>
                 </div>
 
-                {report.eu_ai_act_compliance && report.eu_ai_act_compliance.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">EU AI Act Compliance</p>
+                {/* EU AI Act accordion */}
+                {report.eu_ai_act_compliance?.length > 0 && (
+                  <div data-testid="eu-ai-act-compliance">
+                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">EU AI Act Compliance</p>
                     <div className="space-y-2">
                       {report.eu_ai_act_compliance.map((art) => (
                         <div key={art.article} className="rounded-lg border border-gray-200 overflow-hidden">
@@ -311,7 +377,7 @@ export function TaskDetail() {
                             <div className="px-4 py-3 space-y-3 text-sm">
                               {art.findings.length > 0 && (
                                 <div>
-                                  <p className="text-xs font-semibold text-gray-500 mb-1">Findings</p>
+                                  <p className="text-xs font-semibold text-gray-400 mb-1">Findings</p>
                                   <ul className="list-disc list-inside space-y-1 text-gray-700">
                                     {art.findings.map((f, fi) => <li key={fi}>{f}</li>)}
                                   </ul>
@@ -319,7 +385,7 @@ export function TaskDetail() {
                               )}
                               {art.recommendations.length > 0 && (
                                 <div>
-                                  <p className="text-xs font-semibold text-gray-500 mb-1">Recommendations</p>
+                                  <p className="text-xs font-semibold text-gray-400 mb-1">Recommendations</p>
                                   <ul className="list-disc list-inside space-y-1 text-gray-700">
                                     {art.recommendations.map((rec, ri) => <li key={ri}>{rec}</li>)}
                                   </ul>
@@ -341,7 +407,7 @@ export function TaskDetail() {
                 </button>
               </div>
             )}
-          </div>
+          </Section>
         )}
 
       </div>

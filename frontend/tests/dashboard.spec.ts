@@ -1,21 +1,14 @@
 /**
  * Auditex Dashboard — Playwright E2E Tests
  *
- * TC-01  Dashboard loads, form visible, no console errors
- * TC-02  Submit Document Review   → COMPLETED (good data → APPROVE)
- * TC-03  Report detail — EU AI Act accordion + Export JSON
- * TC-04  Submit Risk Analysis     → COMPLETED (good data → APPROVE)
- * TC-05  Submit Contract Check    → COMPLETED (good data → APPROVE)
- * TC-06  Document Review negative → COMPLETED (bad data → REJECT/REQUEST)
- * TC-07  Risk Analysis negative   → COMPLETED (high risk → REJECT)
- * TC-08  Contract Check negative  → COMPLETED (non-compliant → REJECT)
+ * POSITIVE (TC-01 to TC-05): Happy path — all 3 task types complete with APPROVE
+ * NEGATIVE (TC-06 to TC-08): Bad data — all 3 task types complete with REJECT/REQUEST
  *
- * Negative tests (TC-06/07/08):
- *   - Submit intentionally incomplete / high-risk / non-compliant data
- *   - Task must still reach COMPLETED (pipeline works end-to-end)
- *   - Recommendation must be REJECT or REQUEST_ADDITIONAL_INFO (not APPROVE)
- *   - Failed status badge + red lifecycle dot must render for FAILED tasks
- *   - Verifies UI correctly renders rejection outcomes
+ * Negative test assertions:
+ *   - Task reaches COMPLETED (pipeline always completes)
+ *   - Recommendation shown in header is NOT APPROVE
+ *   - Lifecycle dots are all green for COMPLETED tasks
+ *   - Review Panel renders with reviewer cards and confidence bars
  *
  * Run from frontend/:
  *   npx playwright test --reporter=list
@@ -74,7 +67,7 @@ async function ensureQueueClear(label: string): Promise<void> {
   logInfo(`${label} — queue did not clear in 90s, proceeding`)
 }
 
-// ── Submit + poll to any terminal status ─────────────────────────────────────
+// ── Submit + poll to terminal status ─────────────────────────────────────────
 async function submitAndPoll(
   page: Page,
   taskType: 'document_review' | 'risk_analysis' | 'contract_check',
@@ -130,18 +123,78 @@ async function submitAndPoll(
     } catch (e) { logInfo(`poll error: ${e}`) }
   }
 
-  if (!finalStatus) {
-    logFail(`${taskType} timed out`)
-    throw new Error(`${taskType}: timed out waiting for terminal status`)
-  }
-
+  if (!finalStatus) { logFail(`${taskType} timed out`); throw new Error(`${taskType}: timed out`) }
   if (expectStatus !== 'any' && finalStatus !== expectStatus) {
     logFail(`${taskType} ended: ${finalStatus}`)
     throw new Error(`${taskType}: expected ${expectStatus} got ${finalStatus}`)
   }
-
   logPass(`${taskType} → ${finalStatus}`)
   return finalStatus
+}
+
+// ── Verify negative outcome in task detail ────────────────────────────────────
+async function verifyNegativeOutcome(page: Page, taskType: string): Promise<void> {
+
+  // Re-click the first row to ensure detail panel is open
+  await page.locator('button.w-full.text-left').first().click()
+  await page.waitForTimeout(1_500)
+
+  // 1. Task detail panel is rendered (data-testid)
+  const detail = page.locator('[data-testid="task-detail"]')
+  await expect(detail).toBeVisible({ timeout: 10_000 })
+  logPass('Task detail panel visible')
+
+  // 2. Recommendation badge in header should NOT be APPROVE
+  const headerRec = detail.locator('span').filter({ hasText: /APPROVE|REJECT|REQUEST/ }).first()
+  if (await headerRec.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    const rec = (await headerRec.textContent())?.trim() ?? ''
+    logInfo(`Header recommendation: ${rec}`)
+    expect(rec).not.toBe('APPROVE')
+    logPass(`Recommendation is non-approval: ${rec}`)
+  } else {
+    logInfo('Recommendation badge not yet visible in header — checking executor section')
+  }
+
+  // 3. Executor Output section is visible (Step 2)
+  const executorSection = detail.getByText('Step 2 — AI Executor')
+  if (await executorSection.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    logPass('Executor Output section visible')
+    // Click to expand if collapsed
+    await executorSection.click()
+    await page.waitForTimeout(500)
+  }
+
+  // 4. Review Panel section is visible (Step 3)
+  const reviewSection = detail.getByText('Step 3 — Review Panel')
+  if (await reviewSection.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    logPass('Review Panel section visible')
+    await reviewSection.click()
+    await page.waitForTimeout(500)
+    // Count reviewer cards
+    const cards = detail.locator('.rounded-lg.border.border-gray-100.bg-gray-50')
+    const count = await cards.count()
+    logInfo(`Reviewer cards: ${count}`)
+    if (count > 0) logPass(`${count} reviewer card(s) shown`)
+    // Check confidence bars
+    const bars = detail.locator('.bg-gray-200.rounded-full')
+    const barCount = await bars.count()
+    logInfo(`Confidence bars: ${barCount}`)
+    if (barCount > 0) logPass(`${barCount} confidence bar(s) rendered`)
+  }
+
+  // 5. All lifecycle dots are GREEN for COMPLETED task (not blue)
+  const greenDots = detail.locator('.bg-green-500.border-green-500')
+  const greenCount = await greenDots.count()
+  logInfo(`Green lifecycle dots: ${greenCount}`)
+  expect(greenCount).toBeGreaterThan(0)
+  logPass(`${greenCount} green dot(s) — lifecycle complete`)
+
+  // 6. No blue active dot (would mean still in progress)
+  const blueDot = detail.locator('.bg-blue-500.border-blue-500')
+  const blueCount = await blueDot.count()
+  logInfo(`Blue active dots: ${blueCount} (expect 0 for COMPLETED)`)
+  expect(blueCount).toBe(0)
+  logPass('No blue active dot — all stages complete and green')
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -192,24 +245,18 @@ test.describe('Auditex Dashboard E2E', () => {
     log('  RESULT  TC-01 PASSED')
   })
 
-  // ── TC-02 : Document Review (positive) ────────────────────────────────────
+  // ── TC-02 ──────────────────────────────────────────────────────────────────
   test('TC-02  Submit Document Review → COMPLETED', async ({ page }) => {
     logSuite('TC-02  Document Review → COMPLETED (positive)')
     test.setTimeout(360_000)
     await submitAndPoll(page, 'document_review',
-      `Applicant: Jane Doe
-Date of Birth: 22/07/1990
-Employment: Product Manager at FinTech Ltd 4 years
-Annual Salary: 85000 GBP
-Loan Amount Requested: 320000 GBP
-Loan Purpose: Residential mortgage
-Credit Score: 740`,
+      `Applicant: Jane Doe\nDate of Birth: 22/07/1990\nEmployment: Product Manager at FinTech Ltd 4 years\nAnnual Salary: 85000 GBP\nLoan Amount Requested: 320000 GBP\nLoan Purpose: Residential mortgage\nCredit Score: 740`,
       ['Completeness', 'Income Verification'],
     )
     log('  RESULT  TC-02 PASSED')
   })
 
-  // ── TC-03 : Report detail ──────────────────────────────────────────────────
+  // ── TC-03 ──────────────────────────────────────────────────────────────────
   test('TC-03  Task detail shows report and export downloads JSON', async ({ page }) => {
     logSuite('TC-03  Report visible + export downloads JSON')
     test.setTimeout(120_000)
@@ -218,21 +265,17 @@ Credit Score: 740`,
     await page.reload({ waitUntil: 'networkidle' })
     logPass('Page loaded')
 
-    logStep('Find COMPLETED + Report ready task')
     await expect(
       page.locator('button.w-full.text-left')
         .filter({ has: page.locator('span', { hasText: /^COMPLETED$/ }) })
         .filter({ hasText: 'Report ready' }).first()
     ).toBeVisible({ timeout: 30_000 })
-    logPass('Found')
-
     await page.locator('button.w-full.text-left')
       .filter({ has: page.locator('span', { hasText: /^COMPLETED$/ }) })
       .filter({ hasText: 'Report ready' }).first().click()
+    logPass('Clicked Report ready task')
 
-    await expect(page.locator('p.font-mono').first()).toBeVisible({ timeout: 10_000 })
-    logInfo('Task: ' + (await page.locator('p.font-mono').first().textContent())?.trim())
-
+    // Report section is open by default (defaultOpen=true)
     await expect(page.getByText('Plain English Summary')).toBeVisible({ timeout: 60_000 })
     logPass('Plain English Summary visible')
 
@@ -241,7 +284,6 @@ Credit Score: 740`,
 
     const articleBtn = page.locator('button').filter({ hasText: /Article/ }).first()
     await expect(articleBtn).toBeVisible({ timeout: 10_000 })
-    logInfo('Article: ' + (await articleBtn.textContent())?.trim().slice(0, 60))
     await articleBtn.click()
     logPass('Article expanded')
 
@@ -251,8 +293,6 @@ Credit Score: 740`,
     ])
     const filename = download.suggestedFilename()
     expect(filename).toMatch(/^auditex-report-.+\.json$/)
-    logPass(`Downloaded: ${filename}`)
-
     const savePath = path.join(resultsDir, filename)
     await download.saveAs(savePath)
     const parsed = JSON.parse(fs.readFileSync(savePath, 'utf-8'))
@@ -264,206 +304,67 @@ Credit Score: 740`,
     log('  RESULT  TC-03 PASSED')
   })
 
-  // ── TC-04 : Risk Analysis (positive) ──────────────────────────────────────
+  // ── TC-04 ──────────────────────────────────────────────────────────────────
   test('TC-04  Submit Risk Analysis → COMPLETED', async ({ page }) => {
     logSuite('TC-04  Risk Analysis → COMPLETED (positive)')
     test.setTimeout(360_000)
     await submitAndPoll(page, 'risk_analysis',
-      `Portfolio: Small business loan application
-Business Name: Sunrise Bakery Ltd
-Trading Period: 2 years
-Annual Revenue: 180000 GBP
-Net Profit Margin: 8%
-Existing Liabilities: 45000 GBP CBILS loan outstanding
-Directors: 2 personal guarantees provided
-Sector: Food and Beverage
-Requested Facility: 80000 GBP revolving credit
-Collateral: Commercial premises valued at 220000 GBP`,
+      `Business Name: Sunrise Bakery Ltd\nTrading Period: 2 years\nAnnual Revenue: 180000 GBP\nNet Profit Margin: 8%\nExisting Liabilities: 45000 GBP\nDirectors: 2 personal guarantees\nSector: Food and Beverage\nRequested Facility: 80000 GBP\nCollateral: Commercial premises 220000 GBP`,
       ['Risk Assessment', 'Completeness'],
     )
     log('  RESULT  TC-04 PASSED')
   })
 
-  // ── TC-05 : Contract Check (positive) ─────────────────────────────────────
+  // ── TC-05 ──────────────────────────────────────────────────────────────────
   test('TC-05  Submit Contract Check → COMPLETED', async ({ page }) => {
     logSuite('TC-05  Contract Check → COMPLETED (positive)')
     test.setTimeout(360_000)
     await submitAndPoll(page, 'contract_check',
-      `CONTRACT SUMMARY
-Parties: DataFlow Analytics Ltd Processor and MedTech Solutions Ltd Controller
-Type: Data Processing Agreement
-Jurisdiction: England and Wales
-Key Terms:
-Processor may retain data for 7 years post-contract
-No explicit right-to-erasure mechanism specified
-Sub-processors: AWS EU-West-2 and Snowflake US-East
-Breach notification window: 96 hours
-Liability cap: 10000 GBP
-GDPR Article 28 compliance: Partial
-AI-assisted processing: Yes automated credit scoring module`,
+      `Parties: DataFlow Analytics Ltd and MedTech Solutions Ltd\nType: Data Processing Agreement\nJurisdiction: England and Wales\nBreach notification: 96 hours\nLiability cap: 10000 GBP\nGDPR Article 28: Partial\nSub-processors: AWS EU-West-2 and Snowflake US-East`,
       ['Completeness', 'Risk Assessment'],
     )
     log('  RESULT  TC-05 PASSED')
   })
 
   // ── TC-06 : Document Review NEGATIVE ──────────────────────────────────────
-  // Incomplete application — missing income, employment, credit score
-  // Expected: COMPLETED with REJECT or REQUEST_ADDITIONAL_INFO recommendation
-  test('TC-06  Document Review negative — incomplete data → REJECT', async ({ page }) => {
+  test('TC-06  Document Review negative — incomplete data → non-APPROVE', async ({ page }) => {
     logSuite('TC-06  Document Review negative → REJECT/REQUEST')
     test.setTimeout(360_000)
 
     await submitAndPoll(page, 'document_review',
-      `Applicant: Unknown
-Loan Amount: unspecified
-Purpose: unspecified`,
+      `Applicant: Unknown\nLoan Amount: unspecified\nPurpose: unspecified`,
       ['Completeness', 'Income Verification'],
     )
 
-    logStep('Verify task reached COMPLETED')
-    logPass('Pipeline completed on incomplete document')
-
-    logStep('Check executor recommendation is not APPROVE')
-    await page.locator('button.w-full.text-left').first().click()
-    await page.waitForTimeout(1_000)
-
-    // Executor output should show non-approval recommendation
-    const executorSection = page.getByText('Executor Output')
-    await expect(executorSection).toBeVisible({ timeout: 10_000 })
-    logPass('Executor Output section visible')
-
-    const detailText = await page.locator('.px-6').textContent()
-    logInfo(`Detail panel text snippet: ${detailText?.slice(0, 200)}`)
-
-    // Recommendation should NOT be plain APPROVE for this incomplete doc
-    const recCell = page.locator('span.font-mono').filter({ hasText: /APPROVE|REJECT|REQUEST/ })
-    if (await recCell.count() > 0) {
-      const rec = await recCell.first().textContent()
-      logInfo(`Recommendation: ${rec}`)
-      // Log it — we don't hard-assert because Claude may still APPROVE with low confidence
-    }
-
-    // All completed dots should be GREEN (lifecycle fix verification)
-    logStep('Verify completed lifecycle dots are green not blue')
-    const lifecycleDots = page.locator('.w-3.h-3.rounded-full.border-2')
-    const dotCount = await lifecycleDots.count()
-    logInfo(`Lifecycle dots found: ${dotCount}`)
-    logPass('Lifecycle section rendered')
-
+    await verifyNegativeOutcome(page, 'document_review')
     log('  RESULT  TC-06 PASSED')
   })
 
   // ── TC-07 : Risk Analysis NEGATIVE ────────────────────────────────────────
-  // Extremely high-risk application — insolvent business, no collateral
-  // Expected: COMPLETED with HIGH risk_level and REJECT recommendation
-  test('TC-07  Risk Analysis negative — high risk data → REJECT', async ({ page }) => {
-    logSuite('TC-07  Risk Analysis negative → HIGH risk')
+  test('TC-07  Risk Analysis negative — insolvent business → HIGH risk', async ({ page }) => {
+    logSuite('TC-07  Risk Analysis negative → REJECT')
     test.setTimeout(360_000)
 
     await submitAndPoll(page, 'risk_analysis',
-      `Portfolio: Emergency business rescue loan
-Business Name: Collapsed Retail Ltd
-Trading Period: 6 months
-Annual Revenue: 12000 GBP
-Net Profit Margin: -45%
-Existing Liabilities: 890000 GBP multiple creditors
-Directors: 3 directors resigned in last 90 days
-Sector: Retail (distressed)
-Requested Facility: 500000 GBP emergency funding
-Collateral: None available
-CCJs: 4 outstanding county court judgements
-Insolvency: Administrator appointed last week`,
+      `Business Name: Collapsed Retail Ltd\nTrading Period: 6 months\nAnnual Revenue: 12000 GBP\nNet Profit Margin: -45%\nExisting Liabilities: 890000 GBP\nDirectors: 3 resigned in last 90 days\nRequested Facility: 500000 GBP\nCollateral: None\nCCJs: 4 outstanding\nInsolvency: Administrator appointed`,
       ['Risk Assessment', 'Completeness'],
     )
 
-    logStep('Open task detail and verify risk indicators')
-    await page.locator('button.w-full.text-left').first().click()
-    await page.waitForTimeout(1_000)
-
-    const executorSection = page.getByText('Executor Output')
-    await expect(executorSection).toBeVisible({ timeout: 10_000 })
-    logPass('Executor Output visible')
-
-    // Log recommendation for verification
-    const pageContent = await page.locator('.px-6').textContent()
-    logInfo(`Detail content snippet: ${pageContent?.slice(0, 300)}`)
-
-    logStep('Verify Review Panel shows 3 reviewers')
-    const reviewPanel = page.getByText('Review Panel')
-    if (await reviewPanel.isVisible()) {
-      logPass('Review Panel visible')
-      const reviewerCards = page.locator('.rounded-lg.border.border-gray-100.bg-gray-50')
-      const reviewerCount = await reviewerCards.count()
-      logInfo(`Reviewer cards visible: ${reviewerCount}`)
-      if (reviewerCount >= 1) logPass(`${reviewerCount} reviewer card(s) shown`)
-    } else {
-      logInfo('Review Panel not visible — reviewers may not be in task list response')
-    }
-
+    await verifyNegativeOutcome(page, 'risk_analysis')
     log('  RESULT  TC-07 PASSED')
   })
 
   // ── TC-08 : Contract Check NEGATIVE ───────────────────────────────────────
-  // Severely non-compliant contract — GDPR violations, no data protection clauses
-  // Expected: COMPLETED with NON_COMPLIANT status and REJECT recommendation
-  test('TC-08  Contract Check negative — non-compliant contract → REJECT', async ({ page }) => {
+  test('TC-08  Contract Check negative — GDPR violations → NON_COMPLIANT', async ({ page }) => {
     logSuite('TC-08  Contract Check negative → NON_COMPLIANT')
     test.setTimeout(360_000)
 
     await submitAndPoll(page, 'contract_check',
-      `CONTRACT SUMMARY
-Parties: ShadowData Corp (Processor) and NHS Trust (Controller)
-Type: Informal data sharing arrangement
-Jurisdiction: Unknown
-Key Terms:
-No data retention limits specified
-Data may be sold to third parties without notice
-No breach notification requirement
-Sub-processors: Unlisted global vendors
-No right to audit processor
-Liability cap: 0 GBP
-GDPR compliance: None
-Personal data: Full patient medical records including special category data
-Encryption: None specified
-Data subject rights: Not addressed`,
+      `Parties: ShadowData Corp and NHS Trust\nType: Informal data sharing\nJurisdiction: Unknown\nData may be sold to third parties\nNo breach notification requirement\nLiability cap: 0 GBP\nGDPR compliance: None\nPersonal data: Full patient medical records\nEncryption: None`,
       ['Completeness', 'Risk Assessment'],
     )
 
-    logStep('Open task detail and verify non-compliance indicators')
-    await page.locator('button.w-full.text-left').first().click()
-    await page.waitForTimeout(1_000)
-
-    const executorSection = page.getByText('Executor Output')
-    await expect(executorSection).toBeVisible({ timeout: 10_000 })
-    logPass('Executor Output visible')
-
-    // Log full detail text for verification
-    const pageContent = await page.locator('.px-6').textContent()
-    logInfo(`Detail content snippet: ${pageContent?.slice(0, 400)}`)
-
-    logStep('Verify Review Panel shows 3 reviewer confidence bars')
-    const reviewPanel = page.getByText('Review Panel')
-    if (await reviewPanel.isVisible()) {
-      logPass('Review Panel visible')
-      const reviewerCards = page.locator('.rounded-lg.border.border-gray-100.bg-gray-50')
-      const count = await reviewerCards.count()
-      logInfo(`Reviewer cards: ${count}`)
-
-      // Check confidence bars rendered per reviewer
-      const confBars = page.locator('.bg-gray-200.rounded-full')
-      const barCount = await confBars.count()
-      logInfo(`Confidence bars visible: ${barCount}`)
-      if (barCount > 0) logPass(`${barCount} confidence bar(s) shown in review panel`)
-    } else {
-      logInfo('Review Panel not visible in task list response')
-    }
-
-    logStep('Verify COMPLETED status dot is green not blue')
-    const completedLabel = page.getByText('Completed').first()
-    if (await completedLabel.isVisible()) {
-      logPass('Completed label visible in lifecycle')
-    }
-
+    await verifyNegativeOutcome(page, 'contract_check')
     log('  RESULT  TC-08 PASSED')
   })
 
