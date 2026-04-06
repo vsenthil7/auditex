@@ -60,12 +60,43 @@ function Do-Git {
     if ($msg -eq "") { Log "ERROR: -msg required. Example: -msg `"your message`"" "Red"; exit 1 }
     Banner "GIT COMMIT"
     Log "1) date" "Cyan"; Log (Get-Date -Format "dd/MM/yyyy HH:mm:ss"); Log ""
+
     Log "2) git status" "Cyan"; Run "git status"
-    Log "3) git add -A" "Cyan"; Run "git add -A"
-    Log "4) git status" "Cyan"; Run "git status"
-    Log "5) git commit" "Cyan"; Run "git commit -m `"$msg`""
+
+    Log "3) git diff - reviewing all changes" "Cyan"
+    $statusLines = git status --porcelain 2>&1
+    foreach ($entry in $statusLines) {
+        if ($entry.Length -lt 3) { continue }
+        $flag = $entry.Substring(0,2).Trim()
+        $file = $entry.Substring(3).Trim()
+        Log "---- diff: $file [$flag] ----" "Yellow"
+        if ($flag -eq "??") {
+            Log "  (untracked new file - no diff available until staged)" "Yellow"
+        } else {
+            $diffOut = & git diff -- $file 2>&1
+            foreach ($dl in $diffOut) { Log "  $dl" }
+        }
+        Log ""
+    }
+
+    Log "4) REVIEW COMPLETE - waiting for your confirmation" "Cyan"
+    $confirm = Read-Host "Type Y to proceed with git add + commit, N to abort"
+    Log "   User entered: $confirm" "Yellow"
+    if ($confirm -ne "Y") {
+        Log "ABORTED by user. Nothing staged or committed." "Red"
+        return
+    }
+
+    Log "5) git add -A (via run.ps1 audit wrapper)" "Cyan"
+    Run "powershell -ExecutionPolicy Bypass -File run.ps1 -cmd 'git add -A'"
+
     Log "6) git status" "Cyan"; Run "git status"
-    Log "7) date" "Cyan"; Log (Get-Date -Format "dd/MM/yyyy HH:mm:ss"); Log ""
+
+    Log "7) git commit" "Cyan"; Run "git commit -m `"$msg`""
+
+    Log "8) git status" "Cyan"; Run "git status"
+
+    Log "9) date" "Cyan"; Log (Get-Date -Format "dd/MM/yyyy HH:mm:ss"); Log ""
     Log "DONE: Git commit complete. Log: $logFile" "Green"
 }
 

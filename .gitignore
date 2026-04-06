@@ -1,4 +1,4 @@
-﻿__pycache__/
+__pycache__/
 *.py[cod]
 .venv/
 venv/
@@ -20,3 +20,4 @@ vertex-nodes/*/keys/
 docker-compose.override.yml
 .DS_Store
 Thumbs.db
+_patch.tmp
