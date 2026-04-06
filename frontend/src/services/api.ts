@@ -28,15 +28,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function submitTask(body: SubmitTaskBody): Promise<Task> {
-  // API expects: { task_type, payload: { document, review_criteria, agent_id } }
   return request<Task>('/api/v1/tasks', {
     method: 'POST',
     body: JSON.stringify({
       task_type: body.task_type,
       payload: {
-        document:         body.document,
-        review_criteria:  body.review_criteria,
-        agent_id:         DEFAULT_AGENT_ID,
+        document:        body.document,
+        review_criteria: body.review_criteria,
+        agent_id:        DEFAULT_AGENT_ID,
       },
     }),
   })
@@ -47,16 +46,108 @@ export async function getTask(id: string): Promise<Task> {
 }
 
 export async function listTasks(page = 1, size = 50): Promise<TaskListResponse> {
-  // API param is page_size, not size
   return request<TaskListResponse>(`/api/v1/tasks?page=${page}&page_size=${size}`)
 }
 
+// Transform backend eu_ai_act flat dict → frontend eu_ai_act_compliance array
+function transformReport(raw: Record<string, unknown>): PoCReport {
+  const eu = (raw.eu_ai_act ?? {}) as Record<string, Record<string, unknown>>
+
+  const articleMap: Record<string, { label: string; title: string }> = {
+    article_9_risk_management:       { label: 'Article 9',  title: 'Risk Management' },
+    article_13_transparency:         { label: 'Article 13', title: 'Transparency' },
+    article_17_quality_management:   { label: 'Article 17', title: 'Quality Management' },
+  }
+
+  const eu_ai_act_compliance = Object.entries(eu).map(([key, val]) => {
+    const meta   = articleMap[key] ?? { label: key, title: key }
+    const data   = (val ?? {}) as Record<string, unknown>
+
+    // Derive status from available fields
+    let status = 'PARTIAL'
+    if (key === 'article_9_risk_management') {
+      const risk = String(data.risk_assessment ?? '')
+      status = risk === 'LOW' ? 'COMPLIANT' : risk === 'HIGH' ? 'NON_COMPLIANT' : 'PARTIAL'
+    } else if (key === 'article_13_transparency') {
+      status = data.consensus ? 'COMPLIANT' : 'PARTIAL'
+    } else if (key === 'article_17_quality_management') {
+      status = data.all_commitments_verified ? 'COMPLIANT' : 'PARTIAL'
+    }
+
+    // Build findings from the data fields
+    const findings: string[] = []
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== null && v !== undefined && v !== '' && !Array.isArray(v) && typeof v !== 'object') {
+        findings.push(`${k.replace(/_/g, ' ')}: ${v}`)
+      }
+    })
+
+    // Reviewers as findings for article 13
+    if (key === 'article_13_transparency' && Array.isArray(data.reviewers)) {
+      ;(data.reviewers as Record<string, unknown>[]).forEach((r) => {
+        findings.push(`${r.model}: ${r.verdict} (${((r.confidence as number ?? 0) * 100).toFixed(0)}%)`)
+      })
+    }
+
+    return {
+      article:         meta.label,
+      title:           meta.title,
+      status,
+      findings,
+      recommendations: [],
+    }
+  })
+
+  return {
+    task_id:               String(raw.task_id ?? ''),
+    generated_at:          String(raw.generated_at ?? ''),
+    plain_english_summary: String(raw.plain_english_summary ?? ''),
+    overall_recommendation: String(
+      (raw.eu_ai_act as Record<string, Record<string, unknown>> | undefined)
+        ?.article_13_transparency?.decision_made ?? 'REVIEW'
+    ),
+    confidence_score: Number(
+      (raw.eu_ai_act as Record<string, Record<string, unknown>> | undefined)
+        ?.article_9_risk_management?.confidence_score ?? 0
+    ),
+    eu_ai_act_compliance,
+  }
+}
+
 export async function getReport(taskId: string): Promise<PoCReport> {
-  return request<PoCReport>(`/api/v1/reports/${taskId}`)
+  const raw = await request<Record<string, unknown>>(`/api/v1/reports/${taskId}`)
+  return transformReport(raw)
+}
+
+// Transform export: backend returns flat article keys at top level
+function transformExport(raw: Record<string, unknown>): EuAiActExport {
+  const articleMap: Record<string, string> = {
+    article_9_risk_management:     'Article 9 — Risk Management',
+    article_13_transparency:       'Article 13 — Transparency',
+    article_17_quality_management: 'Article 17 — Quality Management',
+  }
+  const articles = Object.entries(articleMap)
+    .filter(([key]) => raw[key])
+    .map(([key, label]) => ({
+      article: label,
+      title:   label,
+      status:  'COMPLIANT',
+      findings: Object.entries(raw[key] as Record<string, unknown>)
+        .filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object')
+        .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`),
+      recommendations: [],
+    }))
+  return {
+    task_id:       String(raw.task_id ?? ''),
+    export_format: 'eu_ai_act',
+    generated_at:  new Date().toISOString(),
+    articles,
+  }
 }
 
 export async function exportReport(taskId: string): Promise<EuAiActExport> {
-  return request<EuAiActExport>(
+  const raw = await request<Record<string, unknown>>(
     `/api/v1/reports/${taskId}/export?format=eu_ai_act`,
   )
+  return transformExport(raw)
 }
