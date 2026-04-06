@@ -4,8 +4,6 @@ import * as api from '../services/api'
 
 const POLL_INTERVAL_MS = 3000
 
-// Normalise any API response into a safe Task shape —
-// guards against missing fields from the list endpoint vs the detail endpoint.
 function normalise(raw: Partial<Task> & { task_id: string }): Task {
   return {
     task_id:          raw.task_id,
@@ -56,7 +54,6 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         selectedTaskId: task.task_id,
         loading: false,
       }))
-      // Immediate refresh so status updates from the server appear right away.
       get().refreshTasks()
     } catch (err) {
       set({ loading: false, error: String(err) })
@@ -67,17 +64,32 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     try {
       const res = await api.listTasks(1, 100)
       const incoming = res.tasks ?? []
+      const selectedId = get().selectedTaskId
 
-      // For tasks COMPLETED but report not yet available, re-fetch individually.
+      // Always fetch full detail for the selected task so Steps 2/3/4 are populated.
+      // Also fetch full detail for any active task (so executor/review populate as they complete).
       const enriched = await Promise.all(
         incoming.map(async (t) => {
-          if (t.status === 'COMPLETED' && !t.report_available) {
+          const needsFull =
+            t.task_id === selectedId ||                           // currently viewed
+            ['EXECUTING','REVIEWING','FINALISING'].includes(t.status) || // active — fields change
+            (t.status === 'COMPLETED' && !t.report_available)    // waiting for report
+
+          if (needsFull) {
             try {
               return normalise(await api.getTask(t.task_id))
             } catch {
               return normalise(t)
             }
           }
+
+          // For COMPLETED tasks not selected, keep existing enriched data if we have it,
+          // otherwise merge list data preserving any existing executor/review/vertex.
+          const existing = get().tasks[t.task_id]
+          if (existing && (existing.executor || existing.review || existing.vertex)) {
+            return normalise({ ...existing, ...t })
+          }
+
           return normalise(t)
         }),
       )
@@ -94,11 +106,21 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     }
   },
 
-  selectTask: (id) => set({ selectedTaskId: id }),
+  selectTask: async (id) => {
+    set({ selectedTaskId: id })
+    // Immediately fetch full detail for the selected task so all steps render instantly
+    try {
+      const full = normalise(await api.getTask(id))
+      set((s) => ({
+        tasks: { ...s.tasks, [id]: full },
+      }))
+    } catch {
+      // Silently ignore — refreshTasks will pick it up on next poll
+    }
+  },
 
   startPolling: () => {
     if (get()._pollingHandle !== null) return
-    // Immediate first fetch so list populates without waiting 3s.
     get().refreshTasks()
     const handle = setInterval(() => {
       get().refreshTasks()
