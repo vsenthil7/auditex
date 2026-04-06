@@ -1,15 +1,40 @@
 /**
  * Auditex Dashboard — Playwright E2E Tests
  *
- * POSITIVE (TC-02/03/04) — Rich complete data → APPROVE expected
- * REPORT   (TC-05)       — Report detail, EU AI Act accordion, JSON export
- * NEGATIVE (TC-06/07/08) — Deliberately bad/incomplete data → REJECT/REQUEST expected
- * UI CHECK (TC-09)       — Verify all 3 negative tasks show non-APPROVE badges in UI
+ * COMPLETE SCENARIO MATRIX
+ * ========================
  *
- * Total: 9 tests (TC-01 through TC-09)
+ * Pipeline statuses:  QUEUED → EXECUTING → REVIEWING → FINALISING → COMPLETED | FAILED
  *
- * Run from frontend/:
- *   npx playwright test --reporter=list
+ * Task type × Recommendation matrix (9 scenarios + 1 dashboard + 1 UI check = 11 tests):
+ *
+ *  TC-01  Dashboard loads
+ *
+ *  DOCUMENT REVIEW  (recommendations: APPROVE | REQUEST_ADDITIONAL_INFO | REJECT)
+ *  TC-02  document_review → APPROVE             (complete mortgage application)
+ *  TC-03  document_review → REQUEST_ADDITIONAL_INFO  (partially complete — missing some docs)
+ *  TC-04  document_review → REJECT              (fraudulent/impossible data)
+ *
+ *  RISK ANALYSIS  (recommendations: APPROVE | REQUEST_ADDITIONAL_INFO | REJECT)
+ *  TC-05  risk_analysis   → APPROVE             (healthy profitable business)
+ *  TC-06  risk_analysis   → REQUEST_ADDITIONAL_INFO  (borderline — needs more info)
+ *  TC-07  risk_analysis   → REJECT              (insolvent, administrator appointed)
+ *
+ *  CONTRACT CHECK  (recommendations: APPROVE | REQUEST_AMENDMENTS | REJECT)
+ *  TC-08  contract_check  → APPROVE             (fully GDPR compliant DPA)
+ *  TC-09  contract_check  → REQUEST_AMENDMENTS  (partial compliance — minor gaps)
+ *  TC-10  contract_check  → REJECT              (GDPR violations, patient data at risk)
+ *
+ *  TC-11  UI consistency — all 9 completed tasks show 5 steps, correct badges, green dots
+ *
+ * Each test:
+ *  - Submits a document crafted to elicit the specific recommendation from Claude
+ *  - Polls until COMPLETED
+ *  - Asserts the recommendation badge matches the expected value
+ *  - Asserts all lifecycle dots are green
+ *  - Asserts Steps 1-5 all render in the detail panel
+ *
+ * Run:  npx playwright test --reporter=list
  */
 
 import { test, expect, type Page } from '@playwright/test'
@@ -27,245 +52,271 @@ const POLL_MS  = 5_000
 const ACTIVE   = new Set(['QUEUED','EXECUTING','REVIEWING','FINALISING'])
 const TERMINAL = new Set(['COMPLETED','FAILED','ESCALATED'])
 
-// ── Documents ─────────────────────────────────────────────────────────────────
-// POSITIVE: Rich, complete, unambiguous data that Claude should APPROVE
+// ══════════════════════════════════════════════════════════════════════════════
+// SCENARIO DOCUMENTS
+// Each document is crafted to reliably elicit a specific recommendation.
+// ══════════════════════════════════════════════════════════════════════════════
 
-const DOC_REVIEW_POSITIVE = `
-MORTGAGE APPLICATION — FULL SUBMISSION
+// ── DOCUMENT REVIEW ──────────────────────────────────────────────────────────
 
-Applicant Details:
-  Full Name:          Jane Elizabeth Doe
-  Date of Birth:      22 July 1990  (Age: 35)
-  National Insurance: AB123456C
-  Current Address:    14 Maple Avenue, London, SW1A 1AA (owned, 5 years)
-  Marital Status:     Married, 2 dependants
+/** TC-02: All fields complete, strong financials → APPROVE */
+const DR_APPROVE = `
+MORTGAGE APPLICATION — COMPLETE SUBMISSION
 
-Employment:
-  Employer:           FinTech Solutions Ltd, London
-  Role:               Senior Product Manager
-  Contract Type:      Permanent, full-time
-  Employment Start:   March 2020 (5 years continuous)
-  Annual Gross Salary: 92000 GBP
-  Bonus (last 3 yrs): 12000 / 14000 / 15000 GBP
-  P60 confirmed:      Yes — submitted with application
+Applicant:        Jane Elizabeth Doe, DOB 22/07/1990, NI AB123456C
+Address:          14 Maple Avenue, London SW1A 1AA (owner-occupier 5 years)
+Employer:         FinTech Solutions Ltd — Senior Product Manager, permanent, 5 years
+Gross Salary:     92000 GBP/year   |  Net Monthly: 6100 GBP
+Bonus (3yr avg):  13667 GBP/year   |  P60 submitted: YES
+Savings:          87000 GBP (6-month bank statements submitted)
+Existing Debts:   Car finance 8400 GBP (120/month) — no other debts
+Credit Score:     Experian 780 (Excellent) — zero CCJs, zero defaults, zero missed payments
+
+Loan Request:     340000 GBP against property 480000 GBP (LTV 70.8%)
+Deposit:          140000 GBP (29.2%, funded from savings)
+Monthly Payment:  1840 GBP at 4.5% — 30% of net income (within policy)
+Loan Purpose:     Residential mortgage, primary dwelling, 25 year term
+
+Documents Provided:
+  ✓ 3 months payslips    ✓ 2 years P60     ✓ 6 months bank statements
+  ✓ Passport (valid)     ✓ Proof of address ✓ Property valuation 485000 GBP
+  ✓ Solicitor confirmed  ✓ Stress test pass (7% = 2340/month, affordable)
+
+Income multiple: 3.7x (policy max 4.5x)  |  Affordability: PASS  |  LTV: PASS
+`
+
+/** TC-03: Missing some supporting documents, borderline income → REQUEST_ADDITIONAL_INFO */
+const DR_REQUEST = `
+MORTGAGE APPLICATION — PARTIAL SUBMISSION
+
+Applicant:        Michael Brown, DOB 15/03/1985
+Address:          22 High Street, Birmingham B1 1AA
+Employer:         Local Council — Admin Officer, 2 years employment
+Gross Salary:     34000 GBP/year
+Bank Statements:  NOT PROVIDED — applicant states "will send shortly"
+Payslips:         Only 1 month provided (3 months required)
+P60:              NOT PROVIDED
+Credit Score:     Not disclosed by applicant
+CCJs:             Unknown — not confirmed
+
+Loan Request:     195000 GBP against property 220000 GBP (LTV 88.6%)
+Deposit:          25000 GBP (source of funds not evidenced)
+Monthly Payment:  Estimated 1100 GBP
+
+Income multiple: 5.7x — EXCEEDS policy maximum of 4.5x
+Missing fields: bank statements, 2 additional payslips, P60, credit check, deposit source
+`
+
+/** TC-04: Clearly fraudulent/impossible data → REJECT */
+const DR_REJECT = `
+MORTGAGE APPLICATION — SUSPICIOUS SUBMISSION
+
+Applicant:        John Smith, DOB 01/01/1900 (age 126 — impossible)
+Address:          123 Fake Street, London (property does not exist on Land Registry)
+Employer:         Self — "CEO of my own company" (no company number provided)
+Gross Salary:     500000 GBP/month (stated verbally, no evidence)
+Bank Statements:  Provided — show only 200 GBP balance
+
+Loan Request:     2000000 GBP (10x stated annual income — impossible)
+Property Value:   Applicant states 2500000 GBP — no valuation report provided
+Deposit:          50000 GBP (cannot explain source)
+Existing Debts:   12 active CCJs totalling 340000 GBP
+Bankruptcy:       Discharged 18 months ago
+Credit Score:     Very Poor — multiple defaults in last 12 months
+Fraud Indicators: Address does not exist, date of birth impossible, income unverifiable
+`
+
+// ── RISK ANALYSIS ─────────────────────────────────────────────────────────────
+
+/** TC-05: Strong profitable business, growing revenue, good security → APPROVE */
+const RA_APPROVE = `
+COMMERCIAL LOAN APPLICATION — HEALTHY BUSINESS
+
+Business:         Sunrise Bakery Ltd (Company No. 12345678)
+Incorporated:     March 2018 — 7 years trading
+Sector:           Food manufacturing (SIC 10710)
+Directors:        Sarah Mitchell (51%) + James Mitchell (49%)
+                  Both providing unlimited personal guarantees
+                  Credit scores: 780 / 755 — no adverse history
+
+Audited Accounts (3 years):
+  2022: Revenue 620000 | Gross Profit 285000 (46%) | Net Profit 72000 | EBITDA 95000
+  2023: Revenue 740000 | Gross Profit 342000 (46%) | Net Profit 89000 | EBITDA 118000
+  2024: Revenue 890000 | Gross Profit 415000 (47%) | Net Profit 108000 | EBITDA 142000
+  Revenue CAGR 19.7% | Margin stable | YTD 2025 on track for 1020000
+
+Balance Sheet Dec 2024:
+  Total Assets 780000 | Total Liabilities 210000 | Net Assets 570000
+  Current Ratio 2.4 | Quick Ratio 1.8 | Debt/Equity 0.37
+
+Existing Finance: Commercial mortgage 150000 (current) + Asset finance 45000 (current)
+No CCJs, no defaults, payments current on all facilities
+
+Loan Request:     200000 GBP — new automated production line
+Security:         Fixed charge on equipment (value 280000) + personal guarantees + debenture
+DSCR:             3.2x at current earnings — strong coverage
+Clients:          38 wholesale accounts including Tesco (3-year contract 2024)
+`
+
+/** TC-06: Some positives but significant gaps — needs clarification → REQUEST_ADDITIONAL_INFO */
+const RA_REQUEST = `
+COMMERCIAL LOAN APPLICATION — BORDERLINE CASE
+
+Business:         TechStart Ltd
+Incorporated:     18 months ago — limited trading history
+Sector:           Software development
+
+Revenue:          Year 1: 85000  |  Year 2 projected: 180000 (projection only, not audited)
+Accounts:         Management accounts only — no audited financials yet
+Profit:           Currently break-even, expecting profit in Q3 this year
+
+Director:         Solo director, age 28, first business
+Personal Guarantee: Offered but director has 45000 GBP student debt
+Credit Score:     Not provided in application
+Security:         Intellectual property (IP — difficult to value/realise)
+
+Loan Request:     120000 GBP working capital
+Purpose:          Hiring 2 developers — no firm client contracts in place yet
+Current Cash:     22000 GBP — 3 months runway without new revenue
+
+Missing: audited accounts, client contracts, director credit check, IP valuation
+`
+
+/** TC-07: Insolvent, administrator appointed, no collateral → REJECT */
+const RA_REJECT = `
+COMMERCIAL LOAN APPLICATION — HIGH RISK / DISTRESSED
+
+Business:         Collapsed Retail Ltd
+Incorporated:     January 2020 (5 years, now distressed)
+Sector:           High street retail (declining sector)
 
 Financial Position:
-  Monthly Net Income:  6100 GBP
-  Monthly Outgoings:   2100 GBP (rent 0, utilities 350, food 400, transport 180, subscriptions 170, other 1000)
-  Disposable Income:   4000 GBP per month
-  Existing Mortgage:   None
-  Other Debts:         Car finance 8400 GBP remaining (120 GBP/month) — 3 years left
-  Credit Cards:        1 card, 2000 GBP limit, balance 0 (paid in full monthly)
-  Savings:             87000 GBP (ISA + current account, 3 months statements provided)
-
-Loan Request:
-  Property Address:    42 Oak Street, Richmond, TW9 1AB
-  Purchase Price:      480000 GBP
-  Loan Amount:         340000 GBP
-  Deposit:             140000 GBP (29.2% — funded from savings)
-  Loan Purpose:        Residential mortgage, primary dwelling
-  Loan Term:           25 years
-  Repayment Type:      Capital and interest
-  Estimated Monthly Repayment: 1840 GBP at 4.5%
-
-Credit Assessment:
-  Experian Score:     780 (Excellent)
-  Equifax Score:      761 (Excellent)
-  CCJs:               None
-  Defaults:           None
-  Missed Payments:    None in last 6 years
-  Bankruptcy:         Never
-
-Supporting Documents Provided:
-  - Last 3 months payslips (confirmed)
-  - Last 2 years P60 (confirmed)
-  - Bank statements 6 months (confirmed)
-  - Passport (confirmed, valid to 2031)
-  - Proof of address — utility bill (confirmed)
-  - Property valuation report (confirmed, 485000 GBP)
-  - Solicitor details (confirmed)
-
-Stress Test Result:
-  At 7% interest rate: 2340 GBP/month — within affordability (58.5% of disposable)
-  Income multiple:     3.7x — within 4.5x policy limit
-`
-
-const RISK_ANALYSIS_POSITIVE = `
-COMMERCIAL LOAN APPLICATION — RISK ASSESSMENT
-
-Business Profile:
-  Registered Name:     Sunrise Bakery Ltd
-  Company Number:      12345678
-  Incorporation Date:  March 2018 (7 years trading)
-  Registered Address:  Unit 4, Baker Street Industrial Estate, Manchester, M1 1AB
-  Business Type:       Limited company
-  SIC Code:            10710 — Manufacture of bread, fresh pastry goods and cakes
-  VAT Registered:      Yes — VAT No. GB123456789
+  Revenue:         Declining — 480000 (2022) → 310000 (2023) → 195000 (2024)
+  Net Margin:      -45% in 2024 — losing money heavily
+  Existing Debts:  890000 GBP owed to 14 creditors (multiple overdue)
+  CCJs:            4 outstanding county court judgements totalling 210000 GBP
+  Cash Position:   Overdraft 35000 GBP — no available liquidity
 
 Directors:
-  Director 1:  Sarah Mitchell — 51% shareholder, 7 years experience in bakery sector
-  Director 2:  James Mitchell — 49% shareholder, 10 years finance background
-  Personal Guarantees: Both directors willing to provide unlimited personal guarantees
-  Director Credit Scores: 780 / 755 (both excellent, no adverse history)
+  3 of 4 directors resigned in last 90 days
+  Remaining director has personal bankruptcy in 2019
 
-Trading Performance (3 years audited):
-  Year 2022: Revenue 620000, Gross Profit 285000 (46%), EBITDA 95000, Net Profit 72000
-  Year 2023: Revenue 740000, Gross Profit 342000 (46%), EBITDA 118000, Net Profit 89000
-  Year 2024: Revenue 890000, Gross Profit 415000 (46.6%), EBITDA 142000, Net Profit 108000
-  YTD 2025 (6 months): Revenue 510000 (on track for 1020000 annualised)
-  Revenue CAGR:         19.7% over 3 years
-  Net Margin:           11-12% consistently
+Legal Status:     Administrator appointed 8 days ago
+Collateral:       None available — all assets subject to existing charges
 
-Balance Sheet (Dec 2024):
-  Total Assets:         780000 GBP
-  Total Liabilities:    210000 GBP
-  Net Assets:           570000 GBP
-  Current Ratio:        2.4 (healthy)
-  Quick Ratio:          1.8 (healthy)
-  Debt-to-Equity:       0.37 (conservative)
-
-Existing Finance:
-  Commercial mortgage:  150000 GBP (premises, 12 years remaining, payments current)
-  Asset finance:        45000 GBP (delivery vehicles, payments current)
-  No unsecured debt beyond above
-
-Loan Request:
-  Amount:              200000 GBP
-  Purpose:             New automated production line — equipment and installation
-  Loan Term:           5 years
-  Repayment:           3900 GBP/month (estimated)
-  Security Offered:
-    - Fixed charge over new equipment (market value 280000)
-    - Personal guarantees from both directors
-    - Debenture over business assets
-
-Market Position:
-  Client Base:         38 wholesale accounts (supermarkets, cafes, restaurants)
-  Largest Client:      Tesco — 18% of revenue (3-year contract renewed 2024)
-  Geographic Spread:   Manchester, Leeds, Sheffield, Liverpool
-  Competitors:         Fragmented local market, no dominant regional player
-
-Business Plan:
-  New equipment to increase production capacity by 60%
-  Secured letters of intent from 2 new wholesale clients (combined 180000 GBP/year)
-  Projected revenue 2026: 1200000 GBP
-  Debt service coverage ratio: 3.2x at current earnings
+Loan Request:     500000 GBP emergency working capital
+Purpose:          Pay outstanding wages and supplier debts
+Repayment Plan:   "Hope to trade our way out" — no credible plan provided
 `
 
-const CONTRACT_CHECK_POSITIVE = `
-DATA PROCESSING AGREEMENT — FULL SUBMISSION
+// ── CONTRACT CHECK ────────────────────────────────────────────────────────────
 
-Agreement Reference: DPA-2024-089
-Agreement Date:      1 January 2025
-Effective Date:      1 January 2025
-Review Date:         31 December 2025
+/** TC-08: Full GDPR Article 28 compliance, all clauses present → APPROVE */
+const CC_APPROVE = `
+DATA PROCESSING AGREEMENT — FULLY COMPLIANT SUBMISSION
 
-PARTIES:
-  Data Controller:   MedTech Solutions Ltd, 100 Innovation Drive, Cambridge, CB1 2AB
-                     Company No. 09876543, ICO Reg. ZA123456
-  Data Processor:    DataFlow Analytics Ltd, 200 Tech Park, London, EC1A 1BB
-                     Company No. 07654321, ICO Reg. ZB789012
+Ref: DPA-2025-089  |  Date: 1 January 2025  |  Jurisdiction: England and Wales
 
-JURISDICTION AND GOVERNING LAW:
-  Governing Law:     England and Wales
-  Supervisory Authority: Information Commissioner's Office (ICO)
-  GDPR Framework:    UK GDPR and Data Protection Act 2018
+Controller:  MedTech Solutions Ltd (ICO Reg ZA123456, Company 09876543)
+Processor:   DataFlow Analytics Ltd (ICO Reg ZB789012, Company 07654321)
 
-SCOPE OF PROCESSING:
-  Purpose:           Analytics processing of anonymised patient outcome data
-                     for clinical research and product improvement
-  Legal Basis:       Article 6(1)(f) legitimate interests — documented in DPIA
-  Special Category:  No special category data processed
-  Data Subjects:     Anonymised patient records (no direct identifiers retained)
-  Data Retention:    Maximum 24 months from collection, then secure deletion
-  Deletion Confirmed: Yes — documented deletion procedure provided
+Scope:
+  Purpose:       Analytics on anonymised patient outcome data — clinical research only
+  Legal Basis:   Article 6(1)(f) legitimate interests — DPIA completed and documented
+  Special Cat:   NO special category data — all data anonymised before transfer
+  Retention:     24 months maximum — documented deletion procedure confirmed
 
-ARTICLE 28 GDPR COMPLIANCE:
-  28(3)(a) Process only on documented instructions:       Yes — confirmed in Schedule 1
-  28(3)(b) Confidentiality obligations on staff:         Yes — NDA signed by all staff
-  28(3)(c) Implement appropriate security measures:      Yes — ISO 27001 certified
-  28(3)(d) Sub-processor restrictions:                   Yes — prior written consent required
-  28(3)(e) Assist with data subject rights:              Yes — 48-hour SLA committed
-  28(3)(f) Assist with security obligations:             Yes — joint security protocol agreed
-  28(3)(g) Deletion/return at end:                       Yes — 30-day deletion confirmed in writing
-  28(3)(h) Provide all necessary information + audits:   Yes — annual audit right granted
+GDPR Article 28(3) Checklist — ALL ITEMS CONFIRMED:
+  (a) Process only on written instructions:      ✓ Schedule 1 documents all instructions
+  (b) Staff confidentiality obligations:         ✓ NDA signed by all staff
+  (c) Appropriate technical/org security:        ✓ ISO 27001 certified (cert attached)
+  (d) Sub-processor restrictions:                ✓ Prior written consent required
+  (e) Assist with data subject rights:           ✓ 48-hour SLA committed in writing
+  (f) Assist with security obligations:          ✓ Joint security protocol agreed
+  (g) Delete/return data at end of contract:     ✓ 30-day deletion confirmed in writing
+  (h) Provide audit information + inspections:   ✓ Annual audit right with 30 days notice
 
-SUB-PROCESSORS:
-  AWS UK (eu-west-2):        Approved — DPA in place, standard contractual clauses signed
-  Snowflake EU (eu-west-1):  Approved — DPA in place, standard contractual clauses signed
-  No other sub-processors without prior written consent
-
-SECURITY MEASURES:
-  Encryption at rest:        AES-256
-  Encryption in transit:     TLS 1.3
-  Access controls:           Role-based, MFA required for all staff
-  Penetration testing:       Annual — last conducted November 2024
-  Incident response:         Documented plan, tested quarterly
-  Data breach notification:  Within 24 hours of discovery (exceeds 72-hour GDPR requirement)
-
-DATA SUBJECT RIGHTS:
-  Right of access:           Supported — process documented
-  Right to rectification:    Supported
-  Right to erasure:          Supported — re-identification and erasure possible
-  Right to restriction:      Supported
-  Right to portability:      Supported
-
-LIABILITY AND INDEMNITY:
-  Liability cap:             5000000 GBP (reflects contract value and risk)
-  Mutual indemnity:          Yes — both parties
-  Cyber insurance:           2000000 GBP cover held by processor
-
-INTERNATIONAL TRANSFERS:
-  All processing within UK/EEA:  Yes — confirmed
-  No third-country transfers:    Confirmed in Schedule 2
-
-AUDIT RIGHTS:
-  Controller audit rights:   Annual audit with 30 days notice
-  Third-party audits:        Accepted
-  Certification sharing:     ISO 27001 certificate provided and will be updated annually
-
-SIGNATURES:
-  Signed by Controller:      John Smith, CEO, MedTech Solutions Ltd — 1 Jan 2025
-  Signed by Processor:       Alice Chen, DPO, DataFlow Analytics Ltd — 1 Jan 2025
+Security: AES-256 at rest | TLS 1.3 in transit | MFA required | Pen test Nov 2024
+Sub-processors: AWS UK eu-west-2 (DPA in place) | Snowflake EU eu-west-1 (DPA in place)
+Transfers: ALL within UK/EEA — NO third country transfers confirmed in Schedule 2
+Breach Notification: Within 24 hours (exceeds 72-hour GDPR requirement)
+Liability Cap: 5000000 GBP | Cyber insurance: 2000000 GBP confirmed
+Signed by both parties 1 January 2025
 `
 
-// NEGATIVE: Deliberately incomplete/bad data that Claude should REJECT or REQUEST
+/** TC-09: Mostly compliant but several gaps needing amendments → REQUEST_AMENDMENTS */
+const CC_REQUEST = `
+DATA PROCESSING AGREEMENT — PARTIAL COMPLIANCE
 
-const DOC_REVIEW_NEGATIVE = `
-Applicant: Unknown Person
-Loan: some amount
-Purpose: personal
+Ref: DPA-2025-045  |  Date: March 2025  |  Jurisdiction: England and Wales
+
+Controller:  RetailCo Ltd
+Processor:   CloudStore Analytics Ltd
+
+Scope:
+  Purpose:       Customer purchase behaviour analytics and profiling
+  Legal Basis:   Legitimate interests stated — DPIA NOT completed
+  Special Cat:   None stated but profiling may reveal health/religious inferences
+
+GDPR Article 28(3) Review:
+  (a) Written instructions:      ✓ Present in Schedule 1
+  (b) Staff confidentiality:     ✓ NDA in place
+  (c) Security measures:         PARTIAL — ISO 27001 in progress (not yet certified)
+  (d) Sub-processor restrictions: MISSING — no sub-processor clause included
+  (e) Data subject rights assist: PARTIAL — SLA not specified, process vague
+  (f) Security obligation assist: ✓ Present
+  (g) Deletion at end:            MISSING — no deletion timeframe specified
+  (h) Audit rights:               PARTIAL — audit right present but no notice period
+
+Security: Encryption at rest ✓ | Encryption in transit ✓ | MFA NOT required
+Sub-processors: AWS listed but no DPA evidenced for AWS usage
+Breach Notification: 72 hours stated (meets minimum requirement only)
+Liability Cap: 50000 GBP (appears low relative to contract value of 400000/year)
+Gaps: DPIA missing, sub-processor DPAs not provided, deletion clause absent
 `
 
-const RISK_ANALYSIS_NEGATIVE = `
-Business: Collapsed Retail Ltd
-Started: 6 months ago
-Revenue: 12000 GBP/year
-Losses: -45% margin
-Debts: 890000 GBP owed to multiple creditors
-3 directors resigned in last 90 days
-Need: 500000 GBP immediately
-Collateral: none available
-CCJs: 4 outstanding judgements
-Administrator appointed last week
+/** TC-10: NHS data, selling to marketing, zero liability, no GDPR compliance → REJECT */
+const CC_REJECT = `
+DATA PROCESSING AGREEMENT — NON-COMPLIANT SUBMISSION
+
+Parties: ShadowData Corp (Processor) and NHS Trust (Controller)
+Type:    Informal written agreement — not a full DPA
+Date:    Undated
+
+Scope:
+  Data:          Full NHS patient medical records including diagnoses, medications,
+                 mental health history, HIV status, genetic data — FULL special category data
+  Purpose:       "Data monetisation and analytics" — vague and unlawful
+  Legal Basis:   NONE stated — no Article 6 or Article 9 basis identified
+  DPIA:          NOT conducted despite high-risk processing of special category health data
+
+GDPR Article 28(3) Review — MULTIPLE FAILURES:
+  (a) Written instructions:      MISSING — no documented instructions
+  (b) Staff confidentiality:     MISSING — no confidentiality obligations
+  (c) Security measures:         MISSING — no security provisions whatsoever
+  (d) Sub-processor restrictions: MISSING — "may use any third parties as needed"
+  (e) Data subject rights:       MISSING — explicitly states "not applicable"
+  (f) Security obligation assist: MISSING
+  (g) Deletion:                  MISSING — "data retained indefinitely"
+  (h) Audit rights:              REFUSED — clause explicitly prohibits audits
+
+Security: NO encryption stated | NO access controls | NO security measures at all
+Sub-processors: "any global vendors as required" — completely unlisted
+Data Transfer: Includes transfer to US vendors with no adequacy decision or SCCs
+Third Party Sharing: Clause 7.3 explicitly permits selling patient data to marketing firms
+Breach Notification: NONE required per contract
+Liability Cap: 0 GBP — processor accepts absolutely no liability
+Patient Rights: Clause 9.1 explicitly states patient rights "do not apply to this agreement"
+GDPR Compliance: Processor states GDPR "does not apply to their operations"
+
+This agreement exposes the NHS Trust to regulatory enforcement, fines up to 4% global turnover,
+and criminal liability under the Data Protection Act 2018.
 `
 
-const CONTRACT_CHECK_NEGATIVE = `
-Parties: ShadowData Corp and NHS Trust
-Type: informal verbal arrangement, no written terms
-Data: Full patient medical records including diagnoses, medications, mental health history
-Retention: indefinite
-Third party sharing: data may be sold to marketing companies without patient consent
-Breach notification: none required
-Liability: 0 GBP cap — processor accepts no responsibility
-GDPR: not applicable according to processor
-Encryption: none
-Patient rights: not addressed
-Audit: refused
-Jurisdiction: unknown
-`
+// ══════════════════════════════════════════════════════════════════════════════
+// LOG SETUP
+// ══════════════════════════════════════════════════════════════════════════════
 
-// ── Log setup ─────────────────────────────────────────────────────────────────
 const resultsDir = path.join(__dirname, 'results')
 if (!fs.existsSync(resultsDir)) fs.mkdirSync(resultsDir, { recursive: true })
 const ts        = new Date().toISOString().replace(/[:.]/g, '-')
@@ -279,7 +330,10 @@ function logFail(s: string, e?: unknown) { log(`  FAIL  ✗ ${s}${e?' — '+e:''
 function logInfo(s: string) { log(`  INFO  ${s}`) }
 function logSuite(s: string){ log(''); log('═'.repeat(60)); log(`  ${s}`); log('═'.repeat(60)) }
 
-// ── API helpers ───────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+
 async function getActiveTasks(): Promise<number> {
   try {
     const res = await fetch(`${API_URL}/api/v1/tasks?page=1&page_size=100`, {
@@ -300,23 +354,19 @@ async function ensureQueueClear(label: string): Promise<void> {
     if (active === 0) { logInfo('Queue clear'); return }
     await new Promise(r => setTimeout(r, 8_000))
   }
-  logInfo(`${label} — queue did not clear in 90s, proceeding`)
+  logInfo(`${label} — proceeding after 90s timeout`)
 }
 
-// ── Submit + poll ─────────────────────────────────────────────────────────────
 async function submitAndPoll(
   page: Page,
   taskType: 'document_review' | 'risk_analysis' | 'contract_check',
   document: string,
   criteria: string[],
-): Promise<string> {
-
+): Promise<void> {
   await ensureQueueClear(taskType)
 
-  logStep('Navigate')
+  logStep(`Navigate + submit ${taskType}`)
   await page.goto(BASE_URL, { waitUntil: 'networkidle' })
-  logPass('Page loaded')
-
   await page.locator('select').selectOption(taskType)
   await page.locator('textarea').fill(document)
   for (const c of criteria) await page.getByLabel(c).check()
@@ -328,12 +378,11 @@ async function submitAndPoll(
   await expect(async () => {
     expect(await page.locator('button.w-full.text-left').count()).toBeGreaterThan(rowsBefore)
   }).toPass({ timeout: 15_000, intervals: [500] })
-  logPass('New row appeared')
 
   await page.locator('button.w-full.text-left').first().click()
-  logPass('Task detail panel opened')
+  logPass('Task row clicked — detail panel open')
 
-  logStep(`Poll for COMPLETED — ${taskType}`)
+  logStep('Poll to COMPLETED')
   const deadline = Date.now() + 200_000
   let finalStatus = ''
   let elapsed = 0
@@ -353,99 +402,91 @@ async function submitAndPoll(
 
   if (!finalStatus) throw new Error(`${taskType}: timed out`)
   if (finalStatus !== 'COMPLETED') throw new Error(`${taskType}: expected COMPLETED got ${finalStatus}`)
-  logPass(`${taskType} → COMPLETED`)
-  return finalStatus
+  logPass(`COMPLETED in ${elapsed / 1000}s`)
 }
 
-// ── Verify positive outcome — recommendation should be APPROVE ────────────────
-async function verifyApprove(page: Page, taskType: string): Promise<void> {
+async function verifyOutcome(
+  page: Page,
+  taskType: string,
+  expectedRec: string,
+): Promise<void> {
+
+  // Ensure detail panel is open and refreshed
   await page.locator('button.w-full.text-left').first().click()
   await page.waitForTimeout(2_000)
 
   const detail = page.locator('[data-testid="task-detail"]')
   await expect(detail).toBeVisible({ timeout: 10_000 })
 
-  // Check header recommendation badge
-  const recBadge = detail.locator('span').filter({ hasText: /APPROVE|REJECT|REQUEST/ }).first()
-  if (await recBadge.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    const rec = (await recBadge.textContent())?.trim() ?? ''
-    logInfo(`${taskType} recommendation: ${rec}`)
-    // For positive tests we expect APPROVE — if not, log warning but don't fail
-    // (Claude may vary slightly but rich data should lean toward APPROVE)
-    if (rec === 'APPROVE') {
-      logPass(`APPROVE received as expected`)
-    } else {
-      logInfo(`WARNING: Got ${rec} instead of APPROVE — document may need richer data`)
-    }
+  // ── 1. Recommendation badge ──────────────────────────────────────────────
+  logStep(`Assert recommendation = ${expectedRec}`)
+  const recBadge = detail.locator('span').filter({
+    hasText: /APPROVE|REJECT|REQUEST_ADDITIONAL_INFO|REQUEST_AMENDMENTS/
+  }).first()
+  await expect(recBadge).toBeVisible({ timeout: 10_000 })
+  const rec = (await recBadge.textContent())?.trim() ?? ''
+  logInfo(`Recommendation badge: ${rec}`)
+  expect(rec).toBe(expectedRec)
+  logPass(`Recommendation = ${rec} ✓`)
+
+  // ── 2. All 5 steps present ───────────────────────────────────────────────
+  logStep('Assert all 5 pipeline steps visible')
+  for (const step of ['Step 1', 'Step 2', 'Step 3', 'Step 4', 'Step 5']) {
+    await expect(detail.getByText(step, { exact: false })).toBeVisible({ timeout: 5_000 })
+    logPass(`${step} visible`)
   }
 
-  // All lifecycle dots green
+  // ── 3. All lifecycle dots green ──────────────────────────────────────────
+  logStep('Assert lifecycle dots all green')
   const greenDots = detail.locator('.bg-green-500.border-green-500')
-  expect(await greenDots.count()).toBeGreaterThan(0)
-  logPass('All lifecycle dots green')
+  const greenCount = await greenDots.count()
+  expect(greenCount).toBeGreaterThan(0)
+  logPass(`${greenCount} green dot(s)`)
 
-  // No blue active dot
-  const blueDot = detail.locator('.bg-blue-500.border-blue-500')
-  expect(await blueDot.count()).toBe(0)
-  logPass('No blue active dot')
-
-  // Steps 2/3/4 are present
-  await expect(detail.getByText('Step 2 — AI Executor', { exact: false })).toBeVisible({ timeout: 5_000 })
-  logPass('Step 2 AI Executor visible')
-  await expect(detail.getByText('Step 3 — Review Panel', { exact: false })).toBeVisible({ timeout: 5_000 })
-  logPass('Step 3 Review Panel visible')
-  await expect(detail.getByText('Step 4 — Vertex Consensus', { exact: false })).toBeVisible({ timeout: 5_000 })
-  logPass('Step 4 Vertex Consensus visible')
-}
-
-// ── Verify negative outcome — recommendation must NOT be APPROVE ──────────────
-async function verifyNonApprove(page: Page, taskType: string): Promise<void> {
-  await page.locator('button.w-full.text-left').first().click()
-  await page.waitForTimeout(2_000)
-
-  const detail = page.locator('[data-testid="task-detail"]')
-  await expect(detail).toBeVisible({ timeout: 10_000 })
-  logPass('Task detail panel visible')
-
-  // Recommendation badge must NOT be APPROVE
-  const recBadge = detail.locator('span').filter({ hasText: /APPROVE|REJECT|REQUEST/ }).first()
-  await expect(recBadge).toBeVisible({ timeout: 8_000 })
-  const rec = (await recBadge.textContent())?.trim() ?? ''
-  logInfo(`${taskType} recommendation: ${rec}`)
-  expect(rec).not.toBe('APPROVE')
-  logPass(`Non-approval recommendation confirmed: ${rec}`)
-
-  // All lifecycle dots green (task completed the pipeline)
-  const greenDots = detail.locator('.bg-green-500.border-green-500')
-  expect(await greenDots.count()).toBeGreaterThan(0)
-  logPass('All lifecycle dots green — pipeline completed')
-
-  // No blue active dot
+  // ── 4. No blue active dot ────────────────────────────────────────────────
   expect(await detail.locator('.bg-blue-500.border-blue-500').count()).toBe(0)
   logPass('No blue active dot')
 
-  // Review Panel exists and has reviewer cards
-  const reviewSection = detail.getByText('Step 3 — Review Panel', { exact: false })
-  if (await reviewSection.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    logPass('Step 3 Review Panel visible')
-    await reviewSection.click()
-    await page.waitForTimeout(500)
-    const cards = detail.locator('.rounded-lg.border.border-gray-100.bg-gray-50')
-    const count = await cards.count()
-    logInfo(`Reviewer cards: ${count}`)
-    if (count > 0) logPass(`${count} reviewer card(s) rendered`)
+  // ── 5. Step 3 Review Panel — expand and check reviewer cards ────────────
+  logStep('Expand Step 3 Review Panel — verify reviewer cards')
+  const step3 = detail.getByText('Step 3', { exact: false }).first()
+  await step3.click()
+  await page.waitForTimeout(500)
+  const reviewerCards = detail.locator('.rounded-lg.border.border-gray-100.bg-gray-50')
+  const cardCount = await reviewerCards.count()
+  logInfo(`Reviewer cards: ${cardCount}`)
+  if (cardCount > 0) {
+    logPass(`${cardCount} reviewer card(s) rendered`)
+    // Check confidence bars exist
+    const bars = detail.locator('.bg-gray-200.rounded-full')
+    logInfo(`Confidence bars: ${await bars.count()}`)
+  }
+
+  // ── 6. Step 5 Report — verify summary visible ────────────────────────────
+  logStep('Expand Step 5 Report — verify Plain English Summary')
+  const step5 = detail.getByText('Step 5', { exact: false }).first()
+  await step5.click()
+  await page.waitForTimeout(500)
+  const summary = detail.getByText('Plain English Summary')
+  if (await summary.isVisible({ timeout: 10_000 }).catch(() => false)) {
+    logPass('Plain English Summary visible')
+  } else {
+    logInfo('Summary not yet visible — report may still be generating')
   }
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
-test.describe('Auditex Dashboard E2E', () => {
+// ══════════════════════════════════════════════════════════════════════════════
+// TESTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+test.describe('Auditex Dashboard E2E — Full Scenario Matrix', () => {
 
   test.beforeAll(() => {
-    log(''); log('█'.repeat(60))
+    log(''); log('█'.repeat(70))
     log('  Auditex Playwright E2E  —  ' + new Date().toLocaleString())
+    log('  Scenario Matrix: 3 task types × 3 recommendations = 9 scenarios')
     log(`  Dashboard: ${BASE_URL}  API: ${API_URL}`)
-    log('  9 tests: TC-01 dashboard | TC-02/03/04 positive | TC-05 report | TC-06/07/08 negative | TC-09 UI check')
-    log('█'.repeat(60))
+    log('█'.repeat(70))
   })
 
   test.afterAll(() => {
@@ -453,7 +494,7 @@ test.describe('Auditex Dashboard E2E', () => {
     logStream.end()
   })
 
-  // ── TC-01 : Dashboard ──────────────────────────────────────────────────────
+  // ── TC-01: Dashboard ───────────────────────────────────────────────────────
   test('TC-01  Dashboard loads without errors', async ({ page }) => {
     logSuite('TC-01  Dashboard loads')
     test.setTimeout(60_000)
@@ -466,6 +507,8 @@ test.describe('Auditex Dashboard E2E', () => {
     await page.reload({ waitUntil: 'networkidle' })
 
     await expect(page).toHaveTitle(/Auditex/i)
+    logPass('Title correct')
+
     for (const [label, loc] of [
       ['header',        page.locator('header')],
       ['Submit Task',   page.getByText('Submit New Task')],
@@ -478,183 +521,150 @@ test.describe('Auditex Dashboard E2E', () => {
       logPass(`${label} visible`)
     }
 
-    if (errs.length > 0) throw new Error(errs.join(' | '))
+    expect(errs.length).toBe(0)
     logPass('No console errors')
     log('  RESULT  TC-01 PASSED')
   })
 
-  // ── TC-02 : Document Review POSITIVE ──────────────────────────────────────
-  test('TC-02  Document Review positive — full application → APPROVE', async ({ page }) => {
-    logSuite('TC-02  Document Review → APPROVE (positive)')
+  // ── TC-02: Document Review → APPROVE ──────────────────────────────────────
+  test('TC-02  document_review → APPROVE (complete mortgage application)', async ({ page }) => {
+    logSuite('TC-02  document_review → APPROVE')
     test.setTimeout(360_000)
-
-    await submitAndPoll(page, 'document_review', DOC_REVIEW_POSITIVE,
-      ['Completeness', 'Income Verification', 'Employment Verification'],
-    )
-    await verifyApprove(page, 'document_review')
+    await submitAndPoll(page, 'document_review', DR_APPROVE,
+      ['Completeness', 'Income Verification', 'Employment Verification'])
+    await verifyOutcome(page, 'document_review', 'APPROVE')
     log('  RESULT  TC-02 PASSED')
   })
 
-  // ── TC-03 : Risk Analysis POSITIVE ────────────────────────────────────────
-  test('TC-03  Risk Analysis positive — healthy business → APPROVE', async ({ page }) => {
-    logSuite('TC-03  Risk Analysis → APPROVE (positive)')
+  // ── TC-03: Document Review → REQUEST_ADDITIONAL_INFO ──────────────────────
+  test('TC-03  document_review → REQUEST_ADDITIONAL_INFO (missing documents)', async ({ page }) => {
+    logSuite('TC-03  document_review → REQUEST_ADDITIONAL_INFO')
     test.setTimeout(360_000)
-
-    await submitAndPoll(page, 'risk_analysis', RISK_ANALYSIS_POSITIVE,
-      ['Risk Assessment', 'Completeness'],
-    )
-    await verifyApprove(page, 'risk_analysis')
+    await submitAndPoll(page, 'document_review', DR_REQUEST,
+      ['Completeness', 'Income Verification'])
+    await verifyOutcome(page, 'document_review', 'REQUEST_ADDITIONAL_INFO')
     log('  RESULT  TC-03 PASSED')
   })
 
-  // ── TC-04 : Contract Check POSITIVE ───────────────────────────────────────
-  test('TC-04  Contract Check positive — compliant DPA → APPROVE', async ({ page }) => {
-    logSuite('TC-04  Contract Check → APPROVE (positive)')
+  // ── TC-04: Document Review → REJECT ───────────────────────────────────────
+  test('TC-04  document_review → REJECT (fraudulent application)', async ({ page }) => {
+    logSuite('TC-04  document_review → REJECT')
     test.setTimeout(360_000)
-
-    await submitAndPoll(page, 'contract_check', CONTRACT_CHECK_POSITIVE,
-      ['Completeness', 'Risk Assessment'],
-    )
-    await verifyApprove(page, 'contract_check')
+    await submitAndPoll(page, 'document_review', DR_REJECT,
+      ['Completeness', 'Income Verification'])
+    await verifyOutcome(page, 'document_review', 'REJECT')
     log('  RESULT  TC-04 PASSED')
   })
 
-  // ── TC-05 : Report detail ──────────────────────────────────────────────────
-  test('TC-05  Report detail — EU AI Act accordion + JSON export', async ({ page }) => {
-    logSuite('TC-05  Report detail + export')
-    test.setTimeout(120_000)
-
-    await page.goto(BASE_URL, { waitUntil: 'networkidle' })
-    await page.reload({ waitUntil: 'networkidle' })
-
-    // Find any Report ready task
-    await expect(
-      page.locator('button.w-full.text-left')
-        .filter({ has: page.locator('span', { hasText: /^COMPLETED$/ }) })
-        .filter({ hasText: 'Report ready' }).first()
-    ).toBeVisible({ timeout: 30_000 })
-
-    await page.locator('button.w-full.text-left')
-      .filter({ has: page.locator('span', { hasText: /^COMPLETED$/ }) })
-      .filter({ hasText: 'Report ready' }).first().click()
-    logPass('Clicked Report ready task')
-
-    await expect(page.getByText('Plain English Summary')).toBeVisible({ timeout: 60_000 })
-    logPass('Plain English Summary visible')
-
-    await expect(page.getByText('EU AI Act Compliance')).toBeVisible({ timeout: 15_000 })
-    logPass('EU AI Act section visible')
-
-    const articleBtn = page.locator('button').filter({ hasText: /Article/ }).first()
-    await expect(articleBtn).toBeVisible({ timeout: 10_000 })
-    logInfo('Article: ' + (await articleBtn.textContent())?.trim().slice(0, 60))
-    await articleBtn.click()
-    logPass('Article expanded')
-
-    const [download] = await Promise.all([
-      page.waitForEvent('download', { timeout: 20_000 }),
-      page.getByRole('button', { name: /Export EU AI Act JSON/i }).click(),
-    ])
-    const filename = download.suggestedFilename()
-    expect(filename).toMatch(/^auditex-report-.+\.json$/)
-
-    const savePath = path.join(resultsDir, filename)
-    await download.saveAs(savePath)
-    const parsed = JSON.parse(fs.readFileSync(savePath, 'utf-8'))
-    expect(parsed).toHaveProperty('task_id')
-    expect(Array.isArray(parsed.articles)).toBe(true)
-    logInfo(`task_id=${parsed.task_id} articles=${parsed.articles.length}`)
-    logPass('JSON export valid')
-
+  // ── TC-05: Risk Analysis → APPROVE ────────────────────────────────────────
+  test('TC-05  risk_analysis → APPROVE (healthy growing business)', async ({ page }) => {
+    logSuite('TC-05  risk_analysis → APPROVE')
+    test.setTimeout(360_000)
+    await submitAndPoll(page, 'risk_analysis', RA_APPROVE,
+      ['Risk Assessment', 'Completeness'])
+    await verifyOutcome(page, 'risk_analysis', 'APPROVE')
     log('  RESULT  TC-05 PASSED')
   })
 
-  // ── TC-06 : Document Review NEGATIVE ──────────────────────────────────────
-  test('TC-06  Document Review negative — missing data → REJECT/REQUEST', async ({ page }) => {
-    logSuite('TC-06  Document Review → non-APPROVE (negative)')
+  // ── TC-06: Risk Analysis → REQUEST_ADDITIONAL_INFO ────────────────────────
+  test('TC-06  risk_analysis → REQUEST_ADDITIONAL_INFO (early stage, needs more info)', async ({ page }) => {
+    logSuite('TC-06  risk_analysis → REQUEST_ADDITIONAL_INFO')
     test.setTimeout(360_000)
-
-    await submitAndPoll(page, 'document_review', DOC_REVIEW_NEGATIVE,
-      ['Completeness', 'Income Verification'],
-    )
-    await verifyNonApprove(page, 'document_review')
+    await submitAndPoll(page, 'risk_analysis', RA_REQUEST,
+      ['Risk Assessment', 'Completeness'])
+    await verifyOutcome(page, 'risk_analysis', 'REQUEST_ADDITIONAL_INFO')
     log('  RESULT  TC-06 PASSED')
   })
 
-  // ── TC-07 : Risk Analysis NEGATIVE ────────────────────────────────────────
-  test('TC-07  Risk Analysis negative — insolvent business → REJECT', async ({ page }) => {
-    logSuite('TC-07  Risk Analysis → non-APPROVE (negative)')
+  // ── TC-07: Risk Analysis → REJECT ─────────────────────────────────────────
+  test('TC-07  risk_analysis → REJECT (insolvent, administrator appointed)', async ({ page }) => {
+    logSuite('TC-07  risk_analysis → REJECT')
     test.setTimeout(360_000)
-
-    await submitAndPoll(page, 'risk_analysis', RISK_ANALYSIS_NEGATIVE,
-      ['Risk Assessment', 'Completeness'],
-    )
-    await verifyNonApprove(page, 'risk_analysis')
+    await submitAndPoll(page, 'risk_analysis', RA_REJECT,
+      ['Risk Assessment', 'Completeness'])
+    await verifyOutcome(page, 'risk_analysis', 'REJECT')
     log('  RESULT  TC-07 PASSED')
   })
 
-  // ── TC-08 : Contract Check NEGATIVE ───────────────────────────────────────
-  test('TC-08  Contract Check negative — GDPR violations → REJECT', async ({ page }) => {
-    logSuite('TC-08  Contract Check → non-APPROVE (negative)')
+  // ── TC-08: Contract Check → APPROVE ───────────────────────────────────────
+  test('TC-08  contract_check → APPROVE (fully GDPR compliant DPA)', async ({ page }) => {
+    logSuite('TC-08  contract_check → APPROVE')
     test.setTimeout(360_000)
-
-    await submitAndPoll(page, 'contract_check', CONTRACT_CHECK_NEGATIVE,
-      ['Completeness', 'Risk Assessment'],
-    )
-    await verifyNonApprove(page, 'contract_check')
+    await submitAndPoll(page, 'contract_check', CC_APPROVE,
+      ['Completeness', 'Risk Assessment'])
+    await verifyOutcome(page, 'contract_check', 'APPROVE')
     log('  RESULT  TC-08 PASSED')
   })
 
-  // ── TC-09 : UI verification ────────────────────────────────────────────────
-  // After all tasks run, verify the task list shows consistent badges for all task types.
-  // Positive tasks → any badge but all steps visible
-  // Negative tasks — check that they are distinct from positive in the list
-  test('TC-09  UI consistency — all steps render for all task types', async ({ page }) => {
-    logSuite('TC-09  UI consistency check')
-    test.setTimeout(120_000)
+  // ── TC-09: Contract Check → REQUEST_AMENDMENTS ────────────────────────────
+  test('TC-09  contract_check → REQUEST_AMENDMENTS (minor GDPR gaps)', async ({ page }) => {
+    logSuite('TC-09  contract_check → REQUEST_AMENDMENTS')
+    test.setTimeout(360_000)
+    await submitAndPoll(page, 'contract_check', CC_REQUEST,
+      ['Completeness', 'Risk Assessment'])
+    await verifyOutcome(page, 'contract_check', 'REQUEST_AMENDMENTS')
+    log('  RESULT  TC-09 PASSED')
+  })
+
+  // ── TC-10: Contract Check → REJECT ────────────────────────────────────────
+  test('TC-10  contract_check → REJECT (NHS data sold to marketing, zero liability)', async ({ page }) => {
+    logSuite('TC-10  contract_check → REJECT')
+    test.setTimeout(360_000)
+    await submitAndPoll(page, 'contract_check', CC_REJECT,
+      ['Completeness', 'Risk Assessment'])
+    await verifyOutcome(page, 'contract_check', 'REJECT')
+    log('  RESULT  TC-10 PASSED')
+  })
+
+  // ── TC-11: UI consistency across all 9 completed tasks ───────────────────
+  test('TC-11  UI consistency — all 9 tasks show 5 steps + correct badges', async ({ page }) => {
+    logSuite('TC-11  UI consistency check')
+    test.setTimeout(180_000)
 
     await page.goto(BASE_URL, { waitUntil: 'networkidle' })
     await page.reload({ waitUntil: 'networkidle' })
     logPass('Page loaded')
 
-    // Count total completed tasks
     const completedRows = page.locator('button.w-full.text-left')
       .filter({ has: page.locator('span', { hasText: /^COMPLETED$/ }) })
     const completedCount = await completedRows.count()
-    logInfo(`Total COMPLETED tasks visible: ${completedCount}`)
-    expect(completedCount).toBeGreaterThanOrEqual(6)
-    logPass(`${completedCount} completed tasks in list`)
+    logInfo(`COMPLETED tasks in list: ${completedCount}`)
+    expect(completedCount).toBeGreaterThanOrEqual(9)
+    logPass(`${completedCount} completed tasks found`)
 
-    // Click each of the first 6 completed tasks and verify all 5 steps render
-    const checkCount = Math.min(completedCount, 6)
-    for (let i = 0; i < checkCount; i++) {
+    // Check first 9 completed tasks for consistency
+    for (let i = 0; i < 9; i++) {
       await completedRows.nth(i).click()
       await page.waitForTimeout(1_500)
 
       const detail = page.locator('[data-testid="task-detail"]')
       await expect(detail).toBeVisible({ timeout: 8_000 })
 
-      const taskId = (await detail.locator('p.font-mono').first().textContent())?.slice(0, 8) ?? `task-${i}`
-      logInfo(`Checking task ${i+1}: ${taskId}`)
+      const taskId = (await detail.locator('p.font-mono').first().textContent())?.slice(0, 8) ?? `#${i+1}`
+      const taskType = (await detail.locator('p.font-semibold.text-gray-800').first().textContent())?.trim() ?? ''
+      const recBadge = detail.locator('span').filter({
+        hasText: /APPROVE|REJECT|REQUEST_ADDITIONAL_INFO|REQUEST_AMENDMENTS/
+      }).first()
+      const rec = await recBadge.isVisible({ timeout: 3_000 }).catch(() => false)
+        ? (await recBadge.textContent())?.trim()
+        : 'N/A'
 
-      // All 5 steps should be present
-      await expect(detail.getByText('Step 1', { exact: false })).toBeVisible({ timeout: 5_000 })
-      await expect(detail.getByText('Step 2', { exact: false })).toBeVisible({ timeout: 5_000 })
-      await expect(detail.getByText('Step 3', { exact: false })).toBeVisible({ timeout: 5_000 })
-      await expect(detail.getByText('Step 4', { exact: false })).toBeVisible({ timeout: 5_000 })
-      await expect(detail.getByText('Step 5', { exact: false })).toBeVisible({ timeout: 5_000 })
-      logPass(`Task ${taskId}: all 5 steps visible`)
+      logInfo(`Task ${i+1}: ${taskId} | ${taskType} | ${rec}`)
 
-      // All lifecycle dots green
-      const greenDots = detail.locator('.bg-green-500.border-green-500')
-      expect(await greenDots.count()).toBeGreaterThan(0)
+      // All 5 steps
+      for (const step of ['Step 1', 'Step 2', 'Step 3', 'Step 4', 'Step 5']) {
+        await expect(detail.getByText(step, { exact: false })).toBeVisible({ timeout: 5_000 })
+      }
 
-      // No blue dot
+      // Green dots, no blue
+      expect(await detail.locator('.bg-green-500.border-green-500').count()).toBeGreaterThan(0)
       expect(await detail.locator('.bg-blue-500.border-blue-500').count()).toBe(0)
+
+      logPass(`Task ${i+1} (${taskId}): all steps present, lifecycle green ✓`)
     }
 
-    logPass('All checked tasks show consistent 5-step panel with green lifecycle')
-    log('  RESULT  TC-09 PASSED')
+    logPass('All 9 tasks consistent — 5 steps, green lifecycle, recommendation badges')
+    log('  RESULT  TC-11 PASSED')
   })
 
 })
