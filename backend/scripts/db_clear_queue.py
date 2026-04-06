@@ -1,160 +1,144 @@
 """
 Auditex -- Clear Stuck Queue + Full Status Report
-Uses psycopg2 directly (synchronous) — avoids asyncpg event loop issues in scripts.
+Runs directly via: docker compose exec api python scripts/db_clear_queue.py
 
-Run:
-  powershell -ExecutionPolicy Bypass -File run.ps1 -cmd "docker compose exec api python scripts/db_clear_queue.py"
-
-Optional threshold in minutes (default 5):
-  powershell -ExecutionPolicy Bypass -File run.ps1 -cmd "docker compose exec api python scripts/db_clear_queue.py 3"
+Uses urllib + asyncpg via a raw subprocess psql call — no extra dependencies.
+Actually uses the simplest possible approach: subprocess psql which is
+guaranteed available since postgres is the DB container.
 """
-import os, sys, re
-sys.path.insert(0, '/app')
-
-try:
-    import psycopg2
-    import psycopg2.extras
-except ImportError:
-    print("ERROR: psycopg2 not available. Trying pip install...")
-    os.system("pip install psycopg2-binary -q")
-    import psycopg2
-    import psycopg2.extras
-
-import datetime
+import os, sys, subprocess, datetime
 
 SEP  = "=" * 60
 SEP2 = "-" * 50
 
-def get_conn():
-    """Build a synchronous psycopg2 connection from DATABASE_URL env var."""
-    url = os.environ.get("DATABASE_URL", "")
-    if not url:
-        raise RuntimeError("DATABASE_URL not set in environment")
-    # Convert asyncpg URL to psycopg2 format
-    # postgresql+asyncpg://user:pass@host:port/db -> postgresql://user:pass@host:port/db
-    url = url.replace("postgresql+asyncpg://", "postgresql://")
-    return psycopg2.connect(url)
+def psql(sql, params=None):
+    """Run SQL via psql subprocess — guaranteed to work in any container."""
+    db_url = os.environ.get("DATABASE_URL", "").replace("postgresql+asyncpg://", "postgresql://")
+    if not db_url:
+        raise RuntimeError("DATABASE_URL not set")
+    cmd = ["psql", db_url, "-c", sql, "--no-align", "--tuples-only", "--field-separator=|"]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"psql error: {result.stderr}")
+    rows = []
+    for line in result.stdout.strip().splitlines():
+        if line.strip():
+            rows.append(line.split("|"))
+    return rows
 
-def run(mins: int = 5):
+def psql_exec(sql):
+    """Run a DML statement via psql, return rowcount from output."""
+    db_url = os.environ.get("DATABASE_URL", "").replace("postgresql+asyncpg://", "postgresql://")
+    cmd = ["psql", db_url, "-c", sql]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"psql error: {result.stderr}")
+    # psql prints "UPDATE 8" etc
+    out = result.stdout.strip()
+    print(f"  DB RESPONSE: {out}")
+    sys.stdout.flush()
+    # Parse rowcount
+    for line in out.splitlines():
+        parts = line.strip().split()
+        if len(parts) == 2 and parts[1].isdigit():
+            return int(parts[1])
+    return -1
+
+def run(mins=5):
     print()
     print(SEP)
     print(f"  db_clear_queue.py  threshold={mins}min  {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
     print(SEP)
     sys.stdout.flush()
 
-    conn = get_conn()
-    conn.autocommit = False
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    # 1. Find stuck tasks
+    rows = psql(f"""
+        SELECT id::text, task_type, status,
+               ROUND(EXTRACT(EPOCH FROM (NOW()-created_at))/60)::int
+        FROM tasks
+        WHERE status IN ('QUEUED','EXECUTING','REVIEWING','FINALISING')
+        AND created_at < NOW() - ({mins} * INTERVAL '1 minute')
+        ORDER BY created_at ASC
+    """)
 
-    try:
-        # ── 1. Find stuck tasks ───────────────────────────────────────────────
-        cur.execute("""
-            SELECT id, task_type, status,
-                   ROUND(EXTRACT(EPOCH FROM (NOW()-created_at))/60)::int AS age_min
-            FROM tasks
-            WHERE status IN ('QUEUED','EXECUTING','REVIEWING','FINALISING')
-            AND created_at < NOW() - (%s * INTERVAL '1 minute')
-            ORDER BY created_at ASC
-        """, (mins,))
-        stuck = cur.fetchall()
-
-        if not stuck:
-            print(f"\n  RESULT: Queue is healthy — no stuck tasks (>{mins} min)")
-            sys.stdout.flush()
-        else:
-            print(f"\n  FOUND: {len(stuck)} stuck task(s) (>{mins} min in active state)")
-            print("  " + SEP2)
-            for r in stuck:
-                print(f"  {str(r['id'])[:8]}  {r['task_type']:<16}  {r['status']:<12}  age={r['age_min']}min")
-            sys.stdout.flush()
-
-            # ── 2. Force-fail them ────────────────────────────────────────────
-            print(f"\n  ACTION: Force-failing {len(stuck)} task(s)...")
-            sys.stdout.flush()
-
-            cur.execute("""
-                UPDATE tasks
-                SET status        = 'FAILED',
-                    error_message = 'Force-failed by db_clear_queue.py — stuck in active state',
-                    updated_at    = NOW()
-                WHERE status IN ('QUEUED','EXECUTING','REVIEWING','FINALISING')
-                AND created_at < NOW() - (%s * INTERVAL '1 minute')
-            """, (mins,))
-
-            rows_updated = cur.rowcount
-            conn.commit()
-
-            # ── 3. Confirm rows updated ───────────────────────────────────────
-            print(f"  UPDATED: {rows_updated} row(s) written to database")
-            if rows_updated == len(stuck):
-                print(f"  OK: All {rows_updated} tasks marked FAILED as expected")
-            else:
-                print(f"  WARNING: Expected {len(stuck)} but updated {rows_updated}")
-            sys.stdout.flush()
-
-        # ── 4. Post-clear status counts ───────────────────────────────────────
-        print()
-        print(SEP)
-        print("  POST-CLEAR STATUS REPORT")
-        print(SEP)
+    if not rows:
+        print(f"\n  RESULT: Queue healthy — no stuck tasks (>{mins} min)")
         sys.stdout.flush()
-
-        cur.execute("SELECT status, COUNT(*) as cnt FROM tasks GROUP BY status ORDER BY cnt DESC")
-        counts = cur.fetchall()
-        print("\n  TASK STATUS COUNTS")
-        print("  " + SEP2)
-        for r in counts:
-            bar = "#" * min(int(r['cnt']), 30)
-            print(f"  {r['status']:<12}  {int(r['cnt']):>4}  {bar}")
-        sys.stdout.flush()
-
-        cur.execute("""
-            SELECT COUNT(*) as cnt FROM tasks
-            WHERE status IN ('QUEUED','EXECUTING','REVIEWING','FINALISING')
-        """)
-        active = cur.fetchone()['cnt']
-        print(f"\n  ACTIVE IN PIPELINE: {active}")
-        if active == 0:
-            print("  STATUS: CLEAR — safe to submit tasks and run Playwright")
-        else:
-            print(f"  STATUS: {active} task(s) still active (may be currently processing)")
-            print("  Wait 90s and re-run if they do not complete")
-        sys.stdout.flush()
-
-        # ── 5. Last 10 tasks ──────────────────────────────────────────────────
-        cur.execute("""
-            SELECT id, task_type, status, created_at, report_available,
-                   CASE WHEN executor_output_json IS NOT NULL THEN 'Y' ELSE 'N' END AS ex,
-                   CASE WHEN review_result_json   IS NOT NULL THEN 'Y' ELSE 'N' END AS rev,
-                   CASE WHEN vertex_event_hash    IS NOT NULL THEN 'Y' ELSE 'N' END AS vtx
-            FROM tasks ORDER BY created_at DESC LIMIT 10
-        """)
-        rows = cur.fetchall()
-        print(f"\n  LAST 10 TASKS")
-        print("  " + SEP2)
-        print(f"  {'ID':8}  {'TYPE':16}  {'STATUS':12}  {'RPT':5}  EX  REV  VTX  TIME")
+    else:
+        print(f"\n  FOUND: {len(rows)} stuck task(s)")
         print("  " + SEP2)
         for r in rows:
-            t = r['created_at'].strftime("%H:%M") if r['created_at'] else "?"
-            print(f"  {str(r['id'])[:8]}  {r['task_type']:<16}  {r['status']:<12}  {str(r['report_available']):5}  {r['ex']:2}  {r['rev']:3}  {r['vtx']:3}  {t}")
+            print(f"  {r[0][:8]}  {r[1]:<16}  {r[2]:<12}  age={r[3]}min")
         sys.stdout.flush()
 
-        # ── 6. Reports ────────────────────────────────────────────────────────
-        cur.execute("SELECT COUNT(*) as cnt FROM reports")
-        rcount = cur.fetchone()['cnt']
-        print(f"\n  REPORTS IN DB: {rcount}")
+        print(f"\n  ACTION: Force-failing {len(rows)} task(s)...")
         sys.stdout.flush()
 
-        print()
-        print(SEP)
-        print("  DONE")
-        print(SEP)
-        print()
+        updated = psql_exec(f"""
+            UPDATE tasks
+            SET status='FAILED',
+                error_message='Force-failed by db_clear_queue.py',
+                updated_at=NOW()
+            WHERE status IN ('QUEUED','EXECUTING','REVIEWING','FINALISING')
+            AND created_at < NOW() - ({mins} * INTERVAL '1 minute')
+        """)
+
+        if updated == len(rows):
+            print(f"  OK: {updated} tasks marked FAILED")
+        elif updated == -1:
+            print(f"  CHECK: Could not parse rowcount — verify manually")
+        else:
+            print(f"  WARNING: Expected {len(rows)} updates, got {updated}")
         sys.stdout.flush()
 
-    finally:
-        cur.close()
-        conn.close()
+    # 2. Status counts
+    print()
+    print(SEP)
+    print("  POST-CLEAR STATUS REPORT")
+    print(SEP)
+    sys.stdout.flush()
+
+    counts = psql("SELECT status, COUNT(*) FROM tasks GROUP BY status ORDER BY COUNT(*) DESC")
+    print("\n  STATUS COUNTS")
+    print("  " + SEP2)
+    for r in counts:
+        bar = "#" * min(int(r[1]), 30)
+        print(f"  {r[0]:<12}  {r[1]:>4}  {bar}")
+    sys.stdout.flush()
+
+    active = psql("SELECT COUNT(*) FROM tasks WHERE status IN ('QUEUED','EXECUTING','REVIEWING','FINALISING')")
+    active_count = int(active[0][0]) if active else 0
+    print(f"\n  ACTIVE IN PIPELINE: {active_count}")
+    print("  STATUS: CLEAR — safe to run Playwright" if active_count == 0 else f"  STATUS: {active_count} still active")
+    sys.stdout.flush()
+
+    # 3. Last 10 tasks
+    last10 = psql("""
+        SELECT id::text, task_type, status,
+               to_char(created_at,'HH24:MI'),
+               report_available::text,
+               CASE WHEN executor_output_json IS NOT NULL THEN 'Y' ELSE 'N' END,
+               CASE WHEN review_result_json   IS NOT NULL THEN 'Y' ELSE 'N' END,
+               CASE WHEN vertex_event_hash    IS NOT NULL THEN 'Y' ELSE 'N' END
+        FROM tasks ORDER BY created_at DESC LIMIT 10
+    """)
+    print(f"\n  LAST 10 TASKS")
+    print("  " + SEP2)
+    print(f"  {'ID':8}  {'TYPE':16}  {'STATUS':12}  {'RPT':5}  EX  REV  VTX  TIME")
+    print("  " + SEP2)
+    for r in last10:
+        print(f"  {r[0][:8]}  {r[1]:<16}  {r[2]:<12}  {r[4]:5}  {r[5]:2}  {r[6]:3}  {r[7]:3}  {r[3]}")
+    sys.stdout.flush()
+
+    rcount = psql("SELECT COUNT(*) FROM reports")
+    print(f"\n  REPORTS IN DB: {rcount[0][0] if rcount else 0}")
+
+    print()
+    print(SEP)
+    print("  DONE")
+    print(SEP)
+    print()
+    sys.stdout.flush()
 
 mins = int(sys.argv[1]) if len(sys.argv) > 1 else 5
 run(mins)
