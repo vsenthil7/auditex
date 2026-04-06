@@ -1,0 +1,1 @@
+    Log "3) git add -A" "Cyan"; Run "git add -A"

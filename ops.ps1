@@ -61,7 +61,7 @@ function Do-Git {
     Banner "GIT COMMIT"
     Log "1) date" "Cyan"; Log (Get-Date -Format "dd/MM/yyyy HH:mm:ss"); Log ""
     Log "2) git status" "Cyan"; Run "git status"
-    Log "3) git add -A" "Cyan"; Run "powershell -ExecutionPolicy Bypass -File run.ps1 -cmd 'git add -A'"
+    Log "3) git add -A" "Cyan"; Run "git add -A"
     Log "4) git status" "Cyan"; Run "git status"
     Log "5) git commit" "Cyan"; Run "git commit -m `"$msg`""
     Log "6) git status" "Cyan"; Run "git status"

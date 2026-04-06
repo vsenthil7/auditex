@@ -1,5 +1,5 @@
-# AUDITEX — PROJECT MEMORY
-# Updated: 2026-04-06 14:00
+# AUDITEX — PROJECT STATUS
+# Updated: 2026-04-06 14:08
 # Rule: UPDATE this file at end of every work block.
 # Rule: NEVER compact the chat without asking the user first.
 # Rule: Warn user when context ~60% full so they decide when to move to new page.
@@ -17,7 +17,7 @@
 
 ## CURRENT STATUS: ✅ 11/11 Playwright tests PASSING
 
-Last run: `ops_playwright_20260406_131903.log` / `playwright-run-2026-04-06T12-19-26-092Z.log`
+Last run: `ops_playwright_20260406_131903.log`
 **Result: 11 passed, 0 failed** ✅
 
 | TC | Test | Result |
@@ -69,7 +69,7 @@ docker compose exec postgres psql -U auditex -d auditex -c "UPDATE tasks SET sta
 - `backend/workers/execution_worker.py` — WORKING: fresh engine+session+event loop per task
 - `backend/core/execution/claude_executor.py` — max_tokens=2048, system prompts for all 3 types
 - `backend/core/execution/task_schemas.py` — 3 schemas with correct recommendation literals
-- `backend/workers/reporting_worker.py` — ✅ FIXED: same _make_engine_and_session() + fresh event loop pattern as execution_worker (was: asyncio.run() loop bug)
+- `backend/workers/reporting_worker.py` — ✅ FIXED: same _make_engine_and_session() + fresh event loop (was: asyncio.run() loop bug)
 - `backend/app/api/v1/tasks.py` — list returns basic fields; detail returns full with executor/review/vertex
 - `backend/db/models/base.py` — TimestampMixin has only `created_at`, NO `updated_at`
 

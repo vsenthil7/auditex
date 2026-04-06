@@ -6,6 +6,12 @@ task.report_available = True.
 
 Queue: reporting_queue
 Task name: workers.reporting_worker.generate_poc_report
+
+Phase 7/8 fix: apply the same _make_engine_and_session() pattern as
+execution_worker.py to avoid the asyncpg "Future attached to a different
+loop" RuntimeError that occurs when Celery runs multiple sequential tasks
+(each asyncio.run() creates a new event loop, but the module-level engine
+is bound to the original loop).
 """
 from __future__ import annotations
 
@@ -16,10 +22,36 @@ import uuid
 from datetime import datetime, timezone
 
 from celery.utils.log import get_task_logger
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.config import settings
 from workers.celery_app import celery_app
 
 logger = get_task_logger(__name__)
+
+
+def _make_engine_and_session():
+    """
+    Create a fresh async engine + session factory for this task invocation.
+    Must be called inside the new event loop (after asyncio.new_event_loop()).
+    pool_pre_ping=False is required — pre_ping uses the loop at engine
+    creation time and will fail on a subsequent Celery task invocation.
+    """
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=False,
+    )
+    session_factory = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
+    return engine, session_factory
 
 
 @celery_app.task(
@@ -33,19 +65,36 @@ def generate_poc_report(self, task_id_str: str) -> dict:
     """
     Celery task: generate the PoC report for a completed task.
 
+    Creates a fresh event loop AND a fresh DB engine per invocation —
+    the only reliable fix for asyncpg "Future attached to a different loop".
+
     Args:
         task_id_str: UUID string of the COMPLETED task.
 
     Returns:
         dict with task_id and outcome.
     """
-    return asyncio.run(_generate_report_async(self, task_id_str))
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    engine = None
+    try:
+        engine, AsyncSessionLocal = _make_engine_and_session()
+        return loop.run_until_complete(
+            _generate_report_async(self, task_id_str, AsyncSessionLocal)
+        )
+    finally:
+        if engine is not None:
+            try:
+                loop.run_until_complete(engine.dispose())
+                logger.info("generate_poc_report: engine disposed for task %s", task_id_str)
+            except Exception as e:
+                logger.warning("generate_poc_report: engine dispose error: %s", e)
+        loop.close()
 
 
-async def _generate_report_async(celery_task, task_id_str: str) -> dict:
+async def _generate_report_async(celery_task, task_id_str: str, AsyncSessionLocal) -> dict:
     from core.reporting.poc_generator import generate_report
     from core.reporting.eu_act_formatter import format_eu_ai_act
-    from db.connection import AsyncSessionLocal
     from db.repositories import task_repo, report_repo
 
     task_id = uuid.UUID(task_id_str)
