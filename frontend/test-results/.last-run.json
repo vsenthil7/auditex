@@ -1,4 +1,7 @@
 {
-  "status": "interrupted",
-  "failedTests": []
+  "status": "failed",
+  "failedTests": [
+    "90cda532ab82d274b30b-a1f63e017156e9b78d43",
+    "90cda532ab82d274b30b-ddf227be54c14681383d"
+  ]
 }

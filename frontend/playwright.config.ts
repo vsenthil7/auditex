@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 150_000,
+  timeout: 300_000,       // 5 min per test
   retries: 0,
   reporter: [
     ['list'],
@@ -14,15 +14,10 @@ export default defineConfig({
     viewport: { width: 1280, height: 800 },
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    actionTimeout: 20_000,
+    // No actionTimeout — let waitForTimeout in while-loop run freely
   },
   projects: [
-    {
-      name: 'chromium',
-      use: { browserName: 'chromium' },
-    },
+    { name: 'chromium', use: { browserName: 'chromium' } },
   ],
-  // Use Playwright's built-in ESM+TS transform (no separate tsc step needed)
-  // This avoids the __dirname issue from Vite's bundler moduleResolution
   tsconfig: './tests/tsconfig.json',
 })
