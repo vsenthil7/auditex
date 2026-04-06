@@ -2,15 +2,13 @@
  * Auditex Dashboard — Playwright E2E Tests
  *
  * TC-01  Dashboard loads, form visible, no console errors
- * TC-02  Submit Document Review → appears → polls to COMPLETED
- * TC-03  Task detail shows report, EU AI Act accordion, Export downloads JSON
+ * TC-02  Submit Document Review   → COMPLETED
+ * TC-03  Report detail — EU AI Act accordion + Export JSON
+ * TC-04  Submit Risk Analysis     → COMPLETED
+ * TC-05  Submit Contract Check    → COMPLETED
  *
- * SEQUENCE:
- *   1. TC-01 runs immediately (UI checks only, ~10s)
- *   2. TC-02 checks API for active tasks before submitting.
- *      If queue is busy it waits up to 3 min for it to clear, THEN submits.
- *      This prevents the "stuck at QUEUED for 5 min" problem.
- *   3. TC-03 clicks a task that has "Report ready" badge (report_available=true)
+ * All task types exercise the full pipeline:
+ *   QUEUED → EXECUTING → REVIEWING → FINALISING → COMPLETED
  *
  * Run from frontend/:
  *   npx playwright test --reporter=list
@@ -24,12 +22,12 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname  = path.dirname(__filename)
 
-const BASE_URL  = 'http://localhost:3000'
-const API_URL   = 'http://localhost:8000'
-const API_KEY   = 'auditex-test-key-phase2'
-const POLL_MS   = 5_000
-const ACTIVE    = new Set(['QUEUED','EXECUTING','REVIEWING','FINALISING'])
-const TERMINAL  = new Set(['COMPLETED','FAILED','ESCALATED'])
+const BASE_URL = 'http://localhost:3000'
+const API_URL  = 'http://localhost:8000'
+const API_KEY  = 'auditex-test-key-phase2'
+const POLL_MS  = 5_000
+const ACTIVE   = new Set(['QUEUED','EXECUTING','REVIEWING','FINALISING'])
+const TERMINAL = new Set(['COMPLETED','FAILED','ESCALATED'])
 
 // ── Log setup ─────────────────────────────────────────────────────────────────
 const resultsDir = path.join(__dirname, 'results')
@@ -45,29 +43,93 @@ function logFail(s: string, e?: unknown) { log(`  FAIL  ✗ ${s}${e?' — '+e:''
 function logInfo(s: string) { log(`  INFO  ${s}`) }
 function logSuite(s: string){ log(''); log('═'.repeat(60)); log(`  ${s}`); log('═'.repeat(60)) }
 
-// ── API helper: get active task count directly ────────────────────────────────
+// ── API: active task count ────────────────────────────────────────────────────
 async function getActiveTasks(): Promise<number> {
   const res = await fetch(`${API_URL}/api/v1/tasks?page=1&page_size=100`, {
     headers: { 'X-API-Key': API_KEY }
   })
   if (!res.ok) return 0
   const data = await res.json()
-  const tasks: any[] = data.tasks ?? []
-  return tasks.filter(t => ACTIVE.has(t.status)).length
+  return (data.tasks ?? []).filter((t: any) => ACTIVE.has(t.status)).length
 }
 
-// ── Wait for queue to clear before submitting ─────────────────────────────────
+// ── Wait for queue to clear ───────────────────────────────────────────────────
 async function waitForQueueClear(label: string, timeoutMs = 180_000): Promise<void> {
   const deadline = Date.now() + timeoutMs
-  let waited = 0
   while (Date.now() < deadline) {
     const active = await getActiveTasks()
-    logInfo(`${label} — active tasks in queue: ${active}`)
-    if (active === 0) { logInfo('Queue clear — ready to submit'); return }
+    logInfo(`${label} — active: ${active}`)
+    if (active === 0) { logInfo('Queue clear'); return }
     await new Promise(r => setTimeout(r, 8_000))
-    waited += 8_000
   }
-  logInfo('Queue did not clear within timeout — proceeding anyway')
+  logInfo('Queue timeout — proceeding anyway')
+}
+
+// ── Reusable: submit a task + poll to COMPLETED ───────────────────────────────
+async function submitAndPoll(
+  page: Page,
+  taskType: 'document_review' | 'risk_analysis' | 'contract_check',
+  document: string,
+  criteria: string[],
+): Promise<void> {
+
+  logStep(`Check queue before submitting ${taskType}`)
+  const active = await getActiveTasks()
+  logInfo(`Active tasks: ${active}`)
+  if (active > 0) await waitForQueueClear(`${taskType} pre-check`, 180_000)
+  else logInfo('Queue clear — submitting immediately')
+
+  logStep('Navigate to dashboard')
+  await page.goto(BASE_URL, { waitUntil: 'networkidle' })
+  await page.reload({ waitUntil: 'networkidle' })
+  logPass('Page loaded')
+
+  logStep(`Select ${taskType}`)
+  await page.locator('select').selectOption(taskType)
+  logPass(`${taskType} selected`)
+
+  logStep('Fill document')
+  await page.locator('textarea').fill(document)
+  for (const c of criteria) {
+    await page.getByLabel(c).check()
+  }
+  logPass('Form filled')
+
+  const rowsBefore = await page.locator('button.w-full.text-left').count()
+  logInfo(`Rows before submit: ${rowsBefore}`)
+
+  logStep('Submit')
+  await page.getByRole('button', { name: /Submit Task/i }).click()
+  logPass('Submitted')
+
+  await expect(async () => {
+    expect(await page.locator('button.w-full.text-left').count()).toBeGreaterThan(rowsBefore)
+  }).toPass({ timeout: 15_000, intervals: [500] })
+  logPass('New row appeared')
+
+  logStep(`Poll for COMPLETED — ${taskType}`)
+  const deadline = Date.now() + 200_000
+  let finalStatus = ''
+  let elapsed = 0
+
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(POLL_MS)
+    elapsed += POLL_MS
+    try {
+      const spans   = await page.locator('button.w-full.text-left').first().locator('span').allTextContents()
+      const cleaned = spans.map(s => s.trim()).filter(Boolean)
+      logInfo(`[${Math.round(elapsed/1000)}s] ${cleaned.join(' | ')}`)
+      const term = cleaned.find(s => TERMINAL.has(s))
+      if (term) { finalStatus = term; break }
+    } catch (e) { logInfo(`poll error: ${e}`) }
+  }
+
+  if (finalStatus === 'COMPLETED') {
+    logPass(`${taskType} reached COMPLETED`)
+  } else {
+    logFail(`${taskType} ended with: ${finalStatus || 'TIMEOUT'}`)
+    throw new Error(`${taskType}: expected COMPLETED got ${finalStatus || 'TIMEOUT'}`)
+  }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -76,8 +138,7 @@ test.describe('Auditex Dashboard E2E', () => {
   test.beforeAll(() => {
     log(''); log('█'.repeat(60))
     log('  Auditex Playwright E2E  —  ' + new Date().toLocaleString())
-    log(`  Dashboard: ${BASE_URL}`)
-    log(`  API:       ${API_URL}`)
+    log(`  Dashboard: ${BASE_URL}  API: ${API_URL}`)
     log('█'.repeat(60))
   })
 
@@ -120,83 +181,28 @@ test.describe('Auditex Dashboard E2E', () => {
     log('  RESULT  TC-01 PASSED')
   })
 
-  // ── TC-02 ──────────────────────────────────────────────────────────────────
-  test('TC-02  Submit Document Review task and poll to COMPLETED', async ({ page }) => {
-    logSuite('TC-02  Submit → poll to COMPLETED')
-    test.setTimeout(360_000)  // 6 min total
+  // ── TC-02 : Document Review ────────────────────────────────────────────────
+  test('TC-02  Submit Document Review → COMPLETED', async ({ page }) => {
+    logSuite('TC-02  Document Review → COMPLETED')
+    test.setTimeout(360_000)
 
-    // ── Step 0: Check queue via API before even opening browser ──
-    logStep('Check API queue depth before submitting')
-    const activeBefore = await getActiveTasks()
-    logInfo(`Active tasks in pipeline right now: ${activeBefore}`)
-    if (activeBefore > 0) {
-      logInfo(`Queue has ${activeBefore} active task(s) — waiting for them to finish first`)
-      logInfo('This prevents our new task from waiting behind existing ones')
-      await waitForQueueClear('Pre-submit queue check', 180_000)
-    } else {
-      logInfo('Queue is clear — submitting immediately')
-    }
-
-    logStep('Navigate to dashboard')
-    await page.goto(BASE_URL, { waitUntil: 'networkidle' })
-    await page.reload({ waitUntil: 'networkidle' })
-    logPass('Page loaded')
-
-    logStep('Select document_review')
-    await page.locator('select').selectOption('document_review')
-
-    const doc = `Applicant: Jane Doe
+    await submitAndPoll(
+      page,
+      'document_review',
+      `Applicant: Jane Doe
 Date of Birth: 22/07/1990
 Employment: Product Manager at FinTech Ltd 4 years
 Annual Salary: 85000 GBP
 Loan Amount Requested: 320000 GBP
 Loan Purpose: Residential mortgage
-Credit Score: 740`
+Credit Score: 740`,
+      ['Completeness', 'Income Verification'],
+    )
 
-    await page.locator('textarea').fill(doc)
-    await page.getByLabel('Completeness').check()
-    await page.getByLabel('Income Verification').check()
-    logPass('Form filled')
-
-    const rowsBefore = await page.locator('button.w-full.text-left').count()
-    logInfo(`Task rows before submit: ${rowsBefore}`)
-
-    logStep('Submit task')
-    await page.getByRole('button', { name: /Submit Task/i }).click()
-    logPass('Submit clicked')
-
-    await expect(async () => {
-      expect(await page.locator('button.w-full.text-left').count()).toBeGreaterThan(rowsBefore)
-    }).toPass({ timeout: 15_000, intervals: [500] })
-    logPass('New row appeared in list')
-
-    logStep('Poll for COMPLETED (queue clear so should take ~60-90s)...')
-    const deadline = Date.now() + 200_000
-    let finalStatus = ''
-    let elapsed = 0
-
-    while (Date.now() < deadline) {
-      await page.waitForTimeout(POLL_MS)
-      elapsed += POLL_MS
-      try {
-        const spans   = await page.locator('button.w-full.text-left').first().locator('span').allTextContents()
-        const cleaned = spans.map(s => s.trim()).filter(Boolean)
-        logInfo(`[${Math.round(elapsed/1000)}s] ${cleaned.join(' | ')}`)
-        const term = cleaned.find(s => TERMINAL.has(s))
-        if (term) { finalStatus = term; break }
-      } catch (e) { logInfo(`poll error: ${e}`) }
-    }
-
-    if (finalStatus === 'COMPLETED') {
-      logPass('Task reached COMPLETED')
-      log('  RESULT  TC-02 PASSED')
-    } else {
-      logFail(`Ended with: ${finalStatus || 'TIMEOUT'}`)
-      throw new Error(`TC-02: expected COMPLETED got ${finalStatus || 'TIMEOUT'}`)
-    }
+    log('  RESULT  TC-02 PASSED')
   })
 
-  // ── TC-03 ──────────────────────────────────────────────────────────────────
+  // ── TC-03 : Report detail ──────────────────────────────────────────────────
   test('TC-03  Task detail shows report and export downloads JSON', async ({ page }) => {
     logSuite('TC-03  Report visible + export downloads JSON')
     test.setTimeout(120_000)
@@ -206,28 +212,29 @@ Credit Score: 740`
     await page.reload({ waitUntil: 'networkidle' })
     logPass('Page loaded')
 
-    // Target only tasks with "Report ready" badge — means report_available=true
     logStep('Find COMPLETED task with Report ready badge')
-    const reportReadyRow = page.locator('button.w-full.text-left')
+    await expect(
+      page.locator('button.w-full.text-left')
+        .filter({ has: page.locator('span', { hasText: /^COMPLETED$/ }) })
+        .filter({ hasText: 'Report ready' })
+        .first()
+    ).toBeVisible({ timeout: 30_000 })
+    logPass('Found Report ready task')
+
+    await page.locator('button.w-full.text-left')
       .filter({ has: page.locator('span', { hasText: /^COMPLETED$/ }) })
       .filter({ hasText: 'Report ready' })
-      .first()
-
-    await expect(reportReadyRow).toBeVisible({ timeout: 30_000 })
-    logPass('Found COMPLETED + Report ready task')
-
-    await reportReadyRow.click()
+      .first().click()
     logPass('Clicked row')
 
-    logStep('Wait for TaskDetail panel')
     await expect(page.locator('p.font-mono').first()).toBeVisible({ timeout: 10_000 })
     logInfo('Task: ' + (await page.locator('p.font-mono').first().textContent())?.trim())
 
-    logStep('Wait for Plain English Summary (60s)')
+    logStep('Wait for Plain English Summary')
     await expect(page.getByText('Plain English Summary')).toBeVisible({ timeout: 60_000 })
     logPass('Plain English Summary visible')
 
-    logStep('Wait for EU AI Act Compliance (15s)')
+    logStep('Wait for EU AI Act Compliance')
     await expect(page.getByText('EU AI Act Compliance')).toBeVisible({ timeout: 15_000 })
     logPass('EU AI Act section visible')
 
@@ -258,4 +265,56 @@ Credit Score: 740`
 
     log('  RESULT  TC-03 PASSED')
   })
+
+  // ── TC-04 : Risk Analysis ──────────────────────────────────────────────────
+  test('TC-04  Submit Risk Analysis → COMPLETED', async ({ page }) => {
+    logSuite('TC-04  Risk Analysis → COMPLETED')
+    test.setTimeout(360_000)
+
+    await submitAndPoll(
+      page,
+      'risk_analysis',
+      `Portfolio: Small business loan application
+Business Name: Sunrise Bakery Ltd
+Trading Period: 2 years
+Annual Revenue: 180000 GBP
+Net Profit Margin: 8%
+Existing Liabilities: 45000 GBP CBILS loan outstanding
+Directors: 2 (personal guarantees provided)
+Sector: Food and Beverage
+Requested Facility: 80000 GBP revolving credit
+Collateral: Commercial premises valued at 220000 GBP`,
+      ['Risk Assessment', 'Completeness'],
+    )
+
+    log('  RESULT  TC-04 PASSED')
+  })
+
+  // ── TC-05 : Contract Check ─────────────────────────────────────────────────
+  test('TC-05  Submit Contract Check → COMPLETED', async ({ page }) => {
+    logSuite('TC-05  Contract Check → COMPLETED')
+    test.setTimeout(360_000)
+
+    await submitAndPoll(
+      page,
+      'contract_check',
+      `CONTRACT SUMMARY
+Parties: DataFlow Analytics Ltd (Processor) and MedTech Solutions Ltd (Controller)
+Type: Data Processing Agreement
+Jurisdiction: England and Wales
+Key Terms:
+- Processor may retain data for 7 years post-contract
+- Processor may share anonymised data with third-party research partners
+- No explicit right-to-erasure mechanism specified
+- Sub-processors listed: AWS EU-West-2, Snowflake US-East
+- Breach notification window: 96 hours
+- Liability cap: 10000 GBP
+GDPR Article 28 compliance: Partial
+AI-assisted processing: Yes — automated credit scoring module in use`,
+      ['Completeness', 'Risk Assessment'],
+    )
+
+    log('  RESULT  TC-05 PASSED')
+  })
+
 })
