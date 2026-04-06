@@ -2,9 +2,6 @@
 Auditex -- Claude executor.
 Builds the system prompt for a given task_type, calls Claude via claude_service,
 parses and validates the structured JSON output, and returns an ExecutorResult.
-
-This module has NO knowledge of Celery, HTTP, or databases.
-It is a pure function: task_type + payload -> ExecutorResult.
 """
 from __future__ import annotations
 
@@ -22,56 +19,61 @@ from services.claude_service import ClaudeServiceError, call_claude
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Result dataclass returned to the execution worker
-# ---------------------------------------------------------------------------
 @dataclass
 class ExecutorResult:
-    output: dict          # Validated structured output (task-specific schema)
-    confidence: float     # 0.0 - 1.0
-    reasoning: str        # Extracted from output or synthetic
-    model: str            # Model name actually used (from API response)
-    tokens_used: int      # Total tokens (input + output)
+    output: dict
+    confidence: float
+    reasoning: str
+    model: str
+    tokens_used: int
 
 
 # ---------------------------------------------------------------------------
-# System prompts -- keyed by task_type
-# Used exactly as specified in PHASE-3-BUILD-PROMPT.md
+# System prompts -- CONCISE to avoid hitting max_tokens
+# Each prompt instructs Claude to return ONLY a compact JSON object.
 # ---------------------------------------------------------------------------
 _SYSTEM_PROMPTS: dict[str, str] = {
     "document_review": (
-        "You are an expert document review specialist for a financial compliance team.\n"
-        "You are reviewing a document for completeness and accuracy.\n"
-        "You must respond with ONLY a valid JSON object matching this exact schema:\n"
+        "You are a financial compliance document reviewer.\n"
+        "Respond with ONLY a valid JSON object, no other text:\n"
         "{\n"
         '  "completeness": <float 0.0-1.0>,\n'
         '  "missing_fields": [<string>, ...],\n'
         '  "recommendation": "APPROVE" | "REQUEST_ADDITIONAL_INFO" | "REJECT",\n'
         '  "reasoning": "<2-3 sentence explanation>",\n'
         '  "confidence": <float 0.0-1.0>\n'
-        "}\n"
-        "Do not include any text outside the JSON object."
+        "}"
+    ),
+    "risk_analysis": (
+        "You are a financial risk analyst.\n"
+        "Respond with ONLY a valid JSON object, no other text:\n"
+        "{\n"
+        '  "risk_level": "LOW" | "MEDIUM" | "HIGH",\n'
+        '  "risk_factors": [<string>, ...],\n'
+        '  "recommendation": "APPROVE" | "REQUEST_ADDITIONAL_INFO" | "REJECT",\n'
+        '  "reasoning": "<2-3 sentence explanation>",\n'
+        '  "confidence": <float 0.0-1.0>\n'
+        "}"
+    ),
+    "contract_check": (
+        "You are a legal contract compliance reviewer.\n"
+        "Respond with ONLY a valid JSON object, no other text:\n"
+        "{\n"
+        '  "compliance_status": "COMPLIANT" | "PARTIAL" | "NON_COMPLIANT",\n'
+        '  "issues": [<string>, ...],\n'
+        '  "recommendation": "APPROVE" | "REQUEST_AMENDMENTS" | "REJECT",\n'
+        '  "reasoning": "<2-3 sentence explanation>",\n'
+        '  "confidence": <float 0.0-1.0>\n'
+        "}"
     ),
 }
 
-_GENERIC_SYSTEM_PROMPT = (
-    "You are an AI task execution specialist for a compliance platform.\n"
-    "Complete the following task and respond with ONLY a valid JSON object:\n"
-    "{\n"
-    '  "result": "<your output>",\n'
-    '  "reasoning": "<2-3 sentence explanation>",\n'
-    '  "confidence": <float 0.0-1.0>\n'
-    "}\n"
-    "Do not include any text outside the JSON object."
-)
-
 
 def _get_system_prompt(task_type: str) -> str:
-    return _SYSTEM_PROMPTS.get(task_type, _GENERIC_SYSTEM_PROMPT)
+    return _SYSTEM_PROMPTS.get(task_type, _SYSTEM_PROMPTS["document_review"])
 
 
 def _build_user_message(task_type: str, payload: dict) -> str:
-    """Serialise the task payload as the user message."""
     return (
         f"Task type: {task_type}\n\n"
         f"Task payload:\n{json.dumps(payload, indent=2, ensure_ascii=False)}"
@@ -79,97 +81,54 @@ def _build_user_message(task_type: str, payload: dict) -> str:
 
 
 def _extract_json(raw_text: str) -> dict:
-    """
-    Extract a JSON object from Claude's response text.
-    Strips markdown code fences if present, then parses.
-    Raises ValueError if no valid JSON is found.
-    """
     text = raw_text.strip()
-
-    # Strip ```json ... ``` or ``` ... ``` fences
     if text.startswith("```"):
         lines = text.splitlines()
-        # Remove first line (``` or ```json) and last line (```)
         inner = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
         text = inner.strip()
-
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Claude response is not valid JSON: {exc}\nRaw: {raw_text[:300]}") from exc
+        raise ValueError(f"Claude response is not valid JSON: {exc}\nRaw: {raw_text[:500]}") from exc
 
 
-# ---------------------------------------------------------------------------
-# Main entry point
-# ---------------------------------------------------------------------------
 async def execute_task(
     task_id: uuid.UUID,
     task_type: str,
     payload: dict,
 ) -> ExecutorResult:
-    """
-    Execute a task using Claude and return a validated ExecutorResult.
-
-    Args:
-        task_id:   UUID of the task (used for logging only).
-        task_type: Task type string (e.g. "document_review").
-        payload:   Task payload dict from the database.
-
-    Returns:
-        ExecutorResult with validated structured output.
-
-    Raises:
-        ClaudeServiceError -- if Claude API fails after all retries.
-        ValueError         -- if Claude's output does not match the expected schema.
-    """
     system_prompt = _get_system_prompt(task_type)
     user_message = _build_user_message(task_type, payload)
     schema_cls = get_schema_for_task_type(task_type)
 
-    logger.info(
-        "Executing task %s type=%s model=%s",
-        task_id, task_type, settings.CLAUDE_MODEL,
-    )
+    logger.info("Executing task %s type=%s model=%s", task_id, task_type, settings.CLAUDE_MODEL)
 
-    # Call Claude via the service layer (handles retries + timeout)
     message = await call_claude(
         system_prompt=system_prompt,
         user_message=user_message,
-        max_tokens=1024,
+        max_tokens=2048,  # increased from 1024 — risk_analysis/contract_check were truncating
     )
 
-    # Extract the text content from the response
     raw_text = message.content[0].text if message.content else ""
 
-    # Parse JSON
     try:
         raw_dict = _extract_json(raw_text)
     except ValueError as exc:
         logger.error("Task %s: JSON parse failed: %s", task_id, exc)
         raise
 
-    # Validate against the task-specific Pydantic schema
     try:
         validated = schema_cls(**raw_dict)
     except ValidationError as exc:
-        logger.error(
-            "Task %s: schema validation failed for type=%s: %s",
-            task_id, task_type, exc,
-        )
-        raise ValueError(
-            f"Claude output failed schema validation for task_type={task_type}: {exc}"
-        ) from exc
+        logger.error("Task %s: schema validation failed type=%s: %s", task_id, task_type, exc)
+        raise ValueError(f"Schema validation failed for {task_type}: {exc}") from exc
 
     validated_dict = validated.model_dump()
     confidence = float(validated_dict.get("confidence", 0.0))
     reasoning = str(validated_dict.get("reasoning", ""))
-
     tokens_used = message.usage.input_tokens + message.usage.output_tokens
 
-    logger.info(
-        "Task %s execution complete | confidence=%.3f tokens=%d",
-        task_id, confidence, tokens_used,
-    )
+    logger.info("Task %s complete | confidence=%.3f tokens=%d", task_id, confidence, tokens_used)
 
     return ExecutorResult(
         output=validated_dict,
