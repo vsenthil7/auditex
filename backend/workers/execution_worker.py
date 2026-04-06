@@ -5,16 +5,15 @@ then runs the full review pipeline, then submits to the Vertex consensus
 layer (stub in Phase 5), then marks COMPLETED, then dispatches the
 reporting task (Phase 6).
 
-Phase 6 lifecycle:  QUEUED -> EXECUTING -> REVIEWING -> FINALISING -> COMPLETED
-                    -> (async) reporting_worker.generate_poc_report
-
-Phase 7 fix: execute_task now creates a fresh asyncio event loop per
-invocation and disposes the SQLAlchemy asyncpg engine pool after each task.
-Without this, the asyncpg connection pool holds a reference to the loop
-from the previous asyncio.run() call. On the second task the pool tries
-to ping using the dead loop and raises:
+Phase 7 fix (v2): The module-level engine in db/connection.py is created
+once at import time and bound to the event loop that existed at that point.
+When Celery runs a second task in a new asyncio.run() call, that loop is
+gone. pool_pre_ping=True then tries to ping using the dead loop and raises:
     RuntimeError: Task got Future attached to a different loop
-This caused TC-04 and TC-05 to hang at QUEUED indefinitely.
+
+Fix: each task invocation creates its own engine + session factory from
+scratch, uses it for the whole task, then disposes it in the finally block.
+This means each task gets a fresh pool bound to its own event loop.
 """
 from __future__ import annotations
 
@@ -25,13 +24,37 @@ import uuid
 from datetime import datetime, timezone
 
 from celery.utils.log import get_task_logger
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.config import settings
 from workers.celery_app import celery_app
 
 logger = get_task_logger(__name__)
 
 _MAX_RETRIES = 3
 _FINALISING_STUB_SLEEP_SECONDS = 2
+
+
+def _make_engine_and_session():
+    """
+    Create a fresh async engine + session factory for this task invocation.
+    Must be called inside the new event loop (after asyncio.new_event_loop()).
+    """
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=False,  # MUST be False — pre_ping uses the loop at engine creation time
+    )
+    session_factory = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
+    return engine, session_factory
 
 
 @celery_app.task(
@@ -45,26 +68,29 @@ def execute_task(self, task_id_str: str) -> dict:
     """
     Main execution Celery task.
 
-    Creates a fresh event loop per invocation and disposes the DB engine
-    pool afterwards so the next task starts completely clean.
+    Creates a fresh event loop AND a fresh DB engine per invocation.
+    This is the only reliable fix for the asyncpg "Future attached to
+    a different loop" error when running multiple sequential Celery tasks.
     """
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    engine = None
     try:
-        return loop.run_until_complete(_execute_task_async(self, task_id_str))
+        engine, session_factory = _make_engine_and_session()
+        return loop.run_until_complete(
+            _execute_task_async(self, task_id_str, session_factory)
+        )
     finally:
-        # Dispose the asyncpg engine pool — forces a fresh pool bound to the
-        # next task's new event loop, preventing "Future attached to a different loop".
-        try:
-            from db.connection import engine as _engine
-            loop.run_until_complete(_engine.dispose())
-            logger.info("execute_task: engine pool disposed after task %s", task_id_str)
-        except Exception as dispose_exc:
-            logger.warning("execute_task: engine dispose error (non-fatal): %s", dispose_exc)
+        if engine is not None:
+            try:
+                loop.run_until_complete(engine.dispose())
+                logger.info("execute_task: engine disposed for task %s", task_id_str)
+            except Exception as e:
+                logger.warning("execute_task: engine dispose error: %s", e)
         loop.close()
 
 
-async def _execute_task_async(celery_task, task_id_str: str) -> dict:
+async def _execute_task_async(celery_task, task_id_str: str, AsyncSessionLocal) -> dict:
     from core.execution.claude_executor import execute_task as run_executor
     from core.execution.retry_handler import exponential_backoff, route_to_dlq
     from core.review.coordinator import run_review_pipeline
@@ -72,7 +98,6 @@ async def _execute_task_async(celery_task, task_id_str: str) -> dict:
     from core.consensus.event_builder import build_task_completed_event
     from core.consensus.foxmq_client import publish_event as foxmq_publish
     from core.consensus.vertex_client import submit_event as vertex_submit, _STUB_MODE as vertex_stub_mode
-    from db.connection import AsyncSessionLocal
     from db.repositories import event_repo, task_repo
     from services.claude_service import ClaudeServiceError
 
