@@ -1,11 +1,11 @@
 """
 Auditex -- Backend Data Verification Script
-Verifies what data the API actually stores and returns for tasks.
+Shows the last 5 tasks (or a specific task) with full DB content.
 
 Run:
   powershell -ExecutionPolicy Bypass -File run.ps1 -cmd "docker compose exec api python scripts/verify_task_data.py"
 
-Or pass a specific task_id:
+Specific task:
   powershell -ExecutionPolicy Bypass -File run.ps1 -cmd "docker compose exec api python scripts/verify_task_data.py <task_id>"
 """
 from __future__ import annotations
@@ -13,49 +13,59 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from datetime import timezone
+import os
 
-from db.connection import get_engine
-from sqlalchemy.ext.asyncio import AsyncSession
+# Must set PYTHONPATH so imports resolve inside the container
+sys.path.insert(0, '/app')
+os.environ.setdefault('PYTHONPATH', '/app')
+
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy import text
 
-SEP = "─" * 70
+SEP = "─" * 68
 
-def fmt(val):
-    if val is None:
-        return "NULL"
-    if isinstance(val, str) and len(val) > 200:
-        return val[:200] + "…"
-    return str(val)
+def j(raw):
+    """Parse + pretty-print JSON, truncated at 800 chars."""
+    if not raw:
+        return "  NULL"
+    try:
+        parsed = json.loads(raw)
+        out = json.dumps(parsed, indent=2)
+        return out[:800] + ("\n  …(truncated)" if len(out) > 800 else "")
+    except Exception as e:
+        return f"  PARSE ERROR: {e}\n  RAW: {str(raw)[:200]}"
 
-async def run(task_id: str | None = None):
-    engine = get_engine()
-    async with AsyncSession(engine) as session:
+async def run(task_id: str | None):
+    # Read DB URL from environment (already set in the container)
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        print("ERROR: DATABASE_URL not set in environment.")
+        return
 
+    engine = create_async_engine(db_url, echo=False)
+
+    async with AsyncSession(engine) as s:
+        # ── Tasks ────────────────────────────────────────────────────────────
         if task_id:
-            query = text("""
+            rows = (await s.execute(text("""
                 SELECT id, task_type, status, created_at, updated_at,
                        payload_json, executor_output_json, review_result_json,
                        vertex_event_hash, vertex_round, vertex_finalised_at,
                        report_available, error_message
-                FROM tasks
-                WHERE id = :tid
-            """)
-            rows = (await session.execute(query, {"tid": task_id})).fetchall()
+                FROM tasks WHERE id = :tid
+            """), {"tid": task_id})).fetchall()
         else:
-            query = text("""
+            rows = (await s.execute(text("""
                 SELECT id, task_type, status, created_at, updated_at,
                        payload_json, executor_output_json, review_result_json,
                        vertex_event_hash, vertex_round, vertex_finalised_at,
                        report_available, error_message
-                FROM tasks
-                ORDER BY created_at DESC
-                LIMIT 5
-            """)
-            rows = (await session.execute(query)).fetchall()
+                FROM tasks ORDER BY created_at DESC LIMIT 5
+            """))).fetchall()
 
         if not rows:
-            print("No tasks found.")
+            print("No tasks found in database.")
+            await engine.dispose()
             return
 
         for row in rows:
@@ -63,102 +73,79 @@ async def run(task_id: str | None = None):
             print(SEP)
             print(f"  TASK  {row.id}")
             print(SEP)
-            print(f"  type            : {row.task_type}")
-            print(f"  status          : {row.status}")
-            print(f"  created_at      : {row.created_at}")
-            print(f"  updated_at      : {row.updated_at}")
-            print(f"  report_available: {row.report_available}")
-            print(f"  error_message   : {fmt(row.error_message)}")
-            print()
+            print(f"  type             : {row.task_type}")
+            print(f"  status           : {row.status}")
+            print(f"  created_at       : {row.created_at}")
+            print(f"  updated_at       : {row.updated_at}")
+            print(f"  report_available : {row.report_available}")
+            print(f"  error_message    : {row.error_message or 'None'}")
 
             # Payload
-            print("  ── PAYLOAD ──────────────────────────────────────────────")
+            print(f"\n  ── PAYLOAD ({'present' if row.payload_json else 'NULL'}) ──────────────────────────────")
             if row.payload_json:
                 try:
-                    payload = json.loads(row.payload_json)
-                    # Show document truncated
-                    if "payload" in payload and "document" in payload["payload"]:
-                        doc = payload["payload"]["document"]
-                        payload["payload"]["document"] = doc[:120] + "…" if len(doc) > 120 else doc
-                    print(json.dumps(payload, indent=4)[:800])
+                    p = json.loads(row.payload_json)
+                    # Truncate document content for readability
+                    if "payload" in p and "document" in p["payload"]:
+                        doc = p["payload"]["document"]
+                        p["payload"]["document"] = doc[:100] + "…" if len(doc) > 100 else doc
+                    print(json.dumps(p, indent=2)[:600])
                 except Exception as e:
-                    print(f"  parse error: {e}")
-                    print(f"  raw: {fmt(row.payload_json)}")
-            else:
-                print("  NULL")
+                    print(f"  PARSE ERROR: {e}")
 
-            # Executor output
-            print()
-            print("  ── EXECUTOR OUTPUT ──────────────────────────────────────")
-            if row.executor_output_json:
-                try:
-                    print(json.dumps(json.loads(row.executor_output_json), indent=4)[:800])
-                except Exception as e:
-                    print(f"  parse error: {e}")
-                    print(f"  raw: {fmt(row.executor_output_json)}")
-            else:
-                print("  NULL (task not yet executed)")
+            # Executor
+            print(f"\n  ── EXECUTOR ({'present' if row.executor_output_json else 'NULL'}) ────────────────────────────")
+            print(j(row.executor_output_json))
 
-            # Review result
-            print()
-            print("  ── REVIEW RESULT ────────────────────────────────────────")
-            if row.review_result_json:
-                try:
-                    review = json.loads(row.review_result_json)
-                    # Truncate long fields
-                    print(json.dumps(review, indent=4)[:1000])
-                except Exception as e:
-                    print(f"  parse error: {e}")
-                    print(f"  raw: {fmt(row.review_result_json)}")
-            else:
-                print("  NULL (review not yet complete)")
+            # Review
+            print(f"\n  ── REVIEW ({'present' if row.review_result_json else 'NULL'}) ──────────────────────────────")
+            print(j(row.review_result_json))
 
-            # Vertex proof
-            print()
-            print("  ── VERTEX PROOF ─────────────────────────────────────────")
+            # Vertex
+            print(f"\n  ── VERTEX PROOF ({'present' if row.vertex_event_hash else 'NULL'}) ─────────────────────────")
             if row.vertex_event_hash:
                 print(f"  event_hash   : {row.vertex_event_hash}")
                 print(f"  round        : {row.vertex_round}")
                 print(f"  finalised_at : {row.vertex_finalised_at}")
             else:
-                print("  NULL (not yet finalised)")
+                print("  Not yet finalised")
 
             # Report
-            print()
-            print("  ── REPORT ───────────────────────────────────────────────")
-            report_query = text("""
-                SELECT id, generated_at, report_json
-                FROM reports
-                WHERE task_id = :tid
-                ORDER BY generated_at DESC
-                LIMIT 1
-            """)
-            report_rows = (await session.execute(report_query, {"tid": str(row.id)})).fetchall()
-            if report_rows:
-                r = report_rows[0]
-                print(f"  report_id    : {r.id}")
-                print(f"  generated_at : {r.generated_at}")
-                if r.report_json:
+            rrows = (await s.execute(text("""
+                SELECT id, generated_at, generator_model,
+                       narrative, eu_ai_act_json, vertex_event_hash
+                FROM reports WHERE task_id = :tid
+                ORDER BY generated_at DESC LIMIT 1
+            """), {"tid": str(row.id)})).fetchall()
+
+            print(f"\n  ── REPORT ({'present' if rrows else 'NULL'}) ────────────────────────────────────────")
+            if rrows:
+                r = rrows[0]
+                print(f"  report_id      : {r.id}")
+                print(f"  generated_at   : {r.generated_at}")
+                print(f"  generator_model: {r.generator_model}")
+                print(f"  vertex_hash    : {r.vertex_event_hash}")
+                if r.narrative:
+                    print(f"  narrative      : {r.narrative[:200]}…")
+                if r.eu_ai_act_json:
                     try:
-                        rdata = json.loads(r.report_json)
-                        summary = rdata.get("plain_english_summary", "")
-                        print(f"  summary      : {summary[:200]}…")
-                        articles = rdata.get("eu_ai_act_compliance", [])
-                        print(f"  articles     : {len(articles)}")
-                        for a in articles:
-                            print(f"    {a.get('article')} — {a.get('title')} — {a.get('status')}")
+                        eu = json.loads(r.eu_ai_act_json)
+                        articles = eu if isinstance(eu, list) else eu.get("articles", eu.get("eu_ai_act_compliance", []))
+                        print(f"  EU AI Act articles: {len(articles)}")
+                        for a in articles[:3]:
+                            print(f"    {a.get('article','?')} — {a.get('title','?')} — {a.get('status','?')}")
                     except Exception as e:
-                        print(f"  parse error: {e}")
+                        print(f"  eu_ai_act parse error: {e}")
             else:
                 print("  No report generated yet")
 
         print()
         print(SEP)
-        print(f"  Verified {len(rows)} task(s)")
+        print(f"  Total tasks shown: {len(rows)}")
         print(SEP)
 
     await engine.dispose()
 
 if __name__ == "__main__":
-    task_id = sys.argv[1] if len(sys.argv) > 1 else None
-    asyncio.run(run(task_id))
+    tid = sys.argv[1] if len(sys.argv) > 1 else None
+    asyncio.run(run(tid))
