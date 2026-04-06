@@ -59,6 +59,18 @@ services:
       - ./backend:/app
     command: celery -A workers.celery_app worker --loglevel=info -Q execution_queue,review_queue,reporting_queue,dlq
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_KEY: auditex-test-key-phase2
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - api
+
   postgres:
     image: postgres:16-alpine
     environment:

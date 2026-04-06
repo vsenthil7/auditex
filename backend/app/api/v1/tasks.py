@@ -17,6 +17,9 @@ Phase 5 changes to get_task():
 
 Phase 6 changes to get_task():
   - report_available: reads task.report_available boolean column (was hardcoded False)
+
+Phase 7 changes to list_tasks():
+  - report_available added to list response so frontend can show Report ready badge
 """
 from __future__ import annotations
 
@@ -127,7 +130,9 @@ async def submit_task(
     return {
         "task_id": str(task.id),
         "status": task.status,
+        "task_type": task.task_type,
         "created_at": task.created_at.isoformat(),
+        "report_available": task.report_available,
         "message": "Task queued for processing",
     }
 
@@ -144,12 +149,6 @@ async def get_task(
 ):
     """
     MT-003 / MT-005 / MT-006 / MT-007: Poll task status by UUID.
-
-    Returns full task detail including:
-      - executor: {model, output, confidence, completed_at}
-      - review:   {consensus, reviewers: [{model, verdict, confidence, commitment_verified}], completed_at}
-      - vertex:   {event_hash, round, finalised_at}  (Phase 5)
-      - report_available: bool  (Phase 6 -- true once reporting_worker completes)
     """
     task = await task_repo.get_task(session, task_id)
     if task is None:
@@ -158,7 +157,6 @@ async def get_task(
             detail=f"Task {task_id} not found.",
         )
 
-    # Executor output -- deserialise the JSON blob stored by the worker
     executor_out = None
     if task.executor_output_json:
         try:
@@ -166,7 +164,6 @@ async def get_task(
         except Exception:
             executor_out = None
 
-    # Review result -- deserialise the JSON blob stored by the worker
     review_out = None
     if task.review_result_json:
         try:
@@ -174,7 +171,6 @@ async def get_task(
         except Exception:
             review_out = None
 
-    # Vertex proof (Phase 5)
     vertex_out = None
     if task.vertex_event_hash:
         vertex_out = {
@@ -192,7 +188,7 @@ async def get_task(
         "executor": executor_out,
         "review": review_out,
         "vertex": vertex_out,
-        "report_available": task.report_available,  # Phase 6: real column value
+        "report_available": task.report_available,
     }
 
 
@@ -224,6 +220,7 @@ async def list_tasks(
                 "task_type": t.task_type,
                 "workflow_id": t.workflow_id,
                 "created_at": t.created_at.isoformat(),
+                "report_available": t.report_available,
             }
             for t in tasks
         ],
