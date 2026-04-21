@@ -7,6 +7,7 @@
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action status
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action clear
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action celery-logs
+#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action foxmq-logs
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action docker-ps
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action git-log
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action diag       (celery+db+docker+git all at once)
@@ -52,6 +53,12 @@ function CeleryLogs($lines = 100) {
     Log ">> Celery worker last $lines lines" "Yellow"
     $out = docker compose logs celery-worker --tail $lines 2>&1
     foreach ($line in $out) { if ($line -notmatch "level=warning") { Log "  $line" } }
+    Log ""
+}
+function FoxMQLogs($lines = 100) {
+    Log ">> FoxMQ broker last $lines lines" "Yellow"
+    $out = docker compose logs foxmq --tail $lines 2>&1
+    foreach ($line in $out) { Log "  $line" }
     Log ""
 }
 
@@ -132,6 +139,13 @@ function Do-CeleryLogs {
     Log "DONE: Celery logs captured. Log: $logFile" "Green"
 }
 
+# ── FOXMQ LOGS ────────────────────────────────────────────────────────────────
+function Do-FoxMQLogs {
+    Banner "FOXMQ BROKER LOGS (last 100 lines)"
+    FoxMQLogs 100
+    Log "DONE: FoxMQ logs captured. Log: $logFile" "Green"
+}
+
 # ── DOCKER PS ─────────────────────────────────────────────────────────────────
 function Do-DockerPs {
     Banner "DOCKER CONTAINER STATUS"
@@ -156,7 +170,7 @@ function Do-GitLog {
 # ── DIAG (everything in one shot) ─────────────────────────────────────────────
 function Do-Diag {
     Banner "FULL DIAGNOSTIC"
-    Log "Running: git-log + docker-ps + db-status + celery-logs" "Cyan"
+    Log "Running: git-log + docker-ps + db-status + celery-logs + foxmq-logs" "Cyan"
     Log ""
 
     Log "=== GIT LOG ===" "Cyan"
@@ -178,6 +192,9 @@ function Do-Diag {
 
     Log "=== CELERY LOGS (last 50) ===" "Cyan"
     CeleryLogs 50
+
+    Log "=== FOXMQ LOGS (last 30) ===" "Cyan"
+    FoxMQLogs 30
 
     Log "DONE: Full diagnostic complete. Log: $logFile" "Green"
 }
@@ -256,6 +273,7 @@ switch ($action) {
     "status"      { Do-Status }
     "clear"       { Do-Clear }
     "celery-logs" { Do-CeleryLogs }
+    "foxmq-logs"  { Do-FoxMQLogs }
     "docker-ps"   { Do-DockerPs }
     "git-log"     { Do-GitLog }
     "diag"        { Do-Diag }
@@ -264,6 +282,6 @@ switch ($action) {
     "all"         { Do-Git; Do-Clear; Do-Playwright }
     default       {
         Log "Unknown action: '$action'" "Red"
-        Log "Valid actions: git, status, clear, celery-logs, docker-ps, git-log, diag, test, playwright, all" "Yellow"
+        Log "Valid actions: git, status, clear, celery-logs, foxmq-logs, docker-ps, git-log, diag, test, playwright, all" "Yellow"
     }
 }

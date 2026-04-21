@@ -5,25 +5,15 @@ GET  /api/v1/tasks/{id}   -- poll status (MT-003, MT-005, MT-006, MT-007)
 GET  /api/v1/tasks        -- list tasks paginated
 All routes require X-API-Key authentication.
 
-Phase 4 changes to get_task():
-  - executor field: deserialises executor_output_json blob (model, output, confidence, completed_at)
-  - review field:   deserialises review_result_json blob (consensus, reviewers[], completed_at)
-    Each reviewer entry: {model, verdict, confidence, commitment_verified}
-
-Phase 5 changes to get_task():
-  - vertex field: populated from vertex_event_hash, vertex_round, vertex_finalised_at ORM fields
-    {event_hash, round, finalised_at}
-  - FINALISING status supported in lifecycle
-
-Phase 6 changes to get_task():
-  - report_available: reads task.report_available boolean column (was hardcoded False)
-
-Phase 7 changes to list_tasks():
-  - report_available added to list response so frontend can show Report ready badge
+Phase 9 changes to get_task():
+  - vertex.mode: "LIVE" when USE_REAL_VERTEX=true (real FoxMQ/Tashi BFT consensus)
+                 "STUB" when USE_REAL_VERTEX=false (Redis counter, no distributed consensus)
+  Judges can see clearly which mode each task used.
 """
 from __future__ import annotations
 
 import json
+import os
 import uuid
 import logging
 
@@ -40,12 +30,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
+def _vertex_mode() -> str:
+    """Returns 'LIVE' if connected to real FoxMQ/Vertex, 'STUB' otherwise."""
+    return "LIVE" if os.environ.get("USE_REAL_VERTEX", "false").lower() == "true" else "STUB"
+
+
 def _orm_to_response(task) -> TaskResponse:
-    """
-    Convert a Task ORM object to a TaskResponse Pydantic model.
-    Handles JSON field deserialisation and nullable fields safely.
-    """
-    # Parse executor details if present
+    """Convert Task ORM to TaskResponse. Handles JSON deserialisation safely."""
     executor = None
     if task.executor_output_json:
         try:
@@ -53,7 +44,6 @@ def _orm_to_response(task) -> TaskResponse:
         except Exception:
             executor = {"raw": task.executor_output_json}
 
-    # Parse review result if present
     review = None
     if task.review_result_json:
         try:
@@ -61,22 +51,20 @@ def _orm_to_response(task) -> TaskResponse:
         except Exception:
             review = {"raw": task.review_result_json}
 
-    # Vertex proof if present
     vertex = None
     if task.vertex_event_hash:
         vertex = {
             "event_hash": task.vertex_event_hash,
             "round": task.vertex_round,
             "finalised_at": task.vertex_finalised_at.isoformat() if task.vertex_finalised_at else None,
+            "mode": _vertex_mode(),
         }
-
-    workflow_id = task.workflow_id
 
     return TaskResponse(
         task_id=task.id,
         status=TaskStatus(task.status),
         task_type=task.task_type,
-        workflow_id=workflow_id,
+        workflow_id=task.workflow_id,
         created_at=task.created_at,
         executor=executor,
         review=review,
@@ -96,18 +84,13 @@ async def submit_task(
     key_meta: dict = Depends(require_api_key),
     session=Depends(get_db_session),
 ):
-    """
-    MT-002: Submit a task.
-    Expected response: {"task_id": "<uuid>", "status": "QUEUED", "created_at": "<timestamp>"}
-    """
-    # Extract optional fields from metadata
+    """MT-002: Submit a task."""
     submitted_by = None
     workflow_id = None
     if body.metadata:
         submitted_by = body.metadata.get("submitted_by")
         workflow_id = body.metadata.get("workflow_id")
 
-    # Merge payload with metadata for storage
     full_payload = {"payload": body.payload}
     if body.metadata:
         full_payload["metadata"] = body.metadata
@@ -123,7 +106,6 @@ async def submit_task(
 
     logger.info("Task created: %s type=%s by=%s", task.id, task.task_type, submitted_by)
 
-    # Dispatch to Celery execution worker -- fire and forget
     celery_execute_task.delay(str(task.id))
     logger.info("Task %s dispatched to execution_queue", task.id)
 
@@ -147,9 +129,7 @@ async def get_task(
     _key_meta: dict = Depends(require_api_key),
     session=Depends(get_db_session),
 ):
-    """
-    MT-003 / MT-005 / MT-006 / MT-007: Poll task status by UUID.
-    """
+    """MT-003 / MT-005 / MT-006 / MT-007: Poll task status by UUID."""
     task = await task_repo.get_task(session, task_id)
     if task is None:
         raise HTTPException(
@@ -177,6 +157,7 @@ async def get_task(
             "event_hash": task.vertex_event_hash,
             "round": task.vertex_round,
             "finalised_at": task.vertex_finalised_at.isoformat() if task.vertex_finalised_at else None,
+            "mode": _vertex_mode(),
         }
 
     return {

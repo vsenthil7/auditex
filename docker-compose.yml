@@ -23,11 +23,14 @@ services:
       FOXMQ_BROKER_URL: mqtt://foxmq:1883
       VERTEX_NODE_URL: http://localhost:8545
       VERTEX_PRIVATE_KEY: placeholder
+      USE_REAL_VERTEX: "true"
       PYTHONPATH: /app
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      foxmq:
         condition: service_healthy
     volumes:
       - ./backend:/app
@@ -51,10 +54,12 @@ services:
       FOXMQ_BROKER_URL: mqtt://foxmq:1883
       VERTEX_NODE_URL: http://localhost:8545
       VERTEX_PRIVATE_KEY: placeholder
+      USE_REAL_VERTEX: "true"
       PYTHONPATH: /app
     depends_on:
       - redis
       - postgres
+      - foxmq
     volumes:
       - ./backend:/app
     command: celery -A workers.celery_app worker --loglevel=info -Q execution_queue,review_queue,reporting_queue,dlq
@@ -82,7 +87,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U auditex"]
+      test: ["CMD-SHELL", "pg_isready -U auditex -d auditex"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -100,11 +105,18 @@ services:
       retries: 10
 
   foxmq:
-    image: eclipse-mosquitto:2
+    build:
+      context: ./foxmq
+      dockerfile: Dockerfile
     ports:
       - "1883:1883"
-    volumes:
-      - ./vertex-nodes/node-a/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - "19793:19793/udp"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/1883' 2>/dev/null && echo healthy || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
 
 volumes:
   postgres_data:
