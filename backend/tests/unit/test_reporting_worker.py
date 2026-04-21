@@ -62,6 +62,49 @@ def test_generate_poc_report_is_celery_task():
     assert hasattr(reporting_worker.generate_poc_report, "delay")
 
 
+def test_generate_poc_report_sync_wrapper_success():
+    """Cover the Celery-entry sync wrapper (lines 77-92): new event loop +
+    engine setup + run_until_complete + dispose cleanup."""
+    fake_engine = MagicMock()
+    fake_engine.dispose = AsyncMock()
+    fake_factory = MagicMock()
+
+    async def fake_coro(*args, **kwargs):
+        return {"task_id": "x", "outcome": "GENERATED"}
+
+    with patch.object(
+        reporting_worker, "_make_engine_and_session",
+        return_value=(fake_engine, fake_factory),
+    ), patch.object(
+        reporting_worker, "_generate_report_async", side_effect=fake_coro,
+    ):
+        ct = MagicMock()
+        out = reporting_worker.generate_poc_report.__wrapped__(ct, "some-task-id")
+    assert out["outcome"] == "GENERATED"
+    fake_engine.dispose.assert_called()
+
+
+def test_generate_poc_report_sync_wrapper_dispose_error_swallowed():
+    """Cover the `except Exception` branch in the finally block where
+    engine.dispose() itself raises."""
+    fake_engine = MagicMock()
+    fake_engine.dispose = AsyncMock(side_effect=RuntimeError("dispose boom"))
+    fake_factory = MagicMock()
+
+    async def fake_coro(*args, **kwargs):
+        return {"task_id": "x", "outcome": "GENERATED"}
+
+    with patch.object(
+        reporting_worker, "_make_engine_and_session",
+        return_value=(fake_engine, fake_factory),
+    ), patch.object(
+        reporting_worker, "_generate_report_async", side_effect=fake_coro,
+    ):
+        ct = MagicMock()
+        out = reporting_worker.generate_poc_report.__wrapped__(ct, "some-task-id")
+    assert out["outcome"] == "GENERATED"
+
+
 @pytest.mark.asyncio
 async def test_generate_report_async_task_not_found():
     session = _make_session()

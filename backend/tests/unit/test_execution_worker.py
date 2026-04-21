@@ -314,3 +314,49 @@ def test_execute_task_is_celery_task():
     # execute_task is the registered Celery task
     assert hasattr(execution_worker.execute_task, "delay")
     assert hasattr(execution_worker.execute_task, "apply_async")
+
+
+def test_execute_task_sync_wrapper_success():
+    """Cover the Celery-entry sync wrapper (lines 79-94): new event loop +
+    engine setup + run_until_complete + dispose cleanup."""
+    fake_engine = MagicMock()
+    fake_engine.dispose = AsyncMock()
+    fake_factory = MagicMock()
+
+    async def fake_coro(*args, **kwargs):
+        return {"task_id": "x", "status": "COMPLETED"}
+
+    with patch.object(
+        execution_worker, "_make_engine_and_session",
+        return_value=(fake_engine, fake_factory),
+    ), patch.object(
+        execution_worker, "_execute_task_async", side_effect=fake_coro,
+    ):
+        ct = MagicMock()
+        out = execution_worker.execute_task.run.__wrapped__(ct, "some-task-id") \
+            if hasattr(execution_worker.execute_task.run, "__wrapped__") \
+            else execution_worker.execute_task.__wrapped__(ct, "some-task-id")
+    assert out["status"] == "COMPLETED"
+    fake_engine.dispose.assert_called()  # verify cleanup happened
+
+
+def test_execute_task_sync_wrapper_dispose_error_swallowed():
+    """Cover the `except Exception as e:` branch in the finally block where
+    engine.dispose() itself raises."""
+    fake_engine = MagicMock()
+    fake_engine.dispose = AsyncMock(side_effect=RuntimeError("dispose boom"))
+    fake_factory = MagicMock()
+
+    async def fake_coro(*args, **kwargs):
+        return {"task_id": "x", "status": "COMPLETED"}
+
+    with patch.object(
+        execution_worker, "_make_engine_and_session",
+        return_value=(fake_engine, fake_factory),
+    ), patch.object(
+        execution_worker, "_execute_task_async", side_effect=fake_coro,
+    ):
+        ct = MagicMock()
+        out = execution_worker.execute_task.__wrapped__(ct, "some-task-id")
+    # Still returns the inner result even though dispose raised
+    assert out["status"] == "COMPLETED"

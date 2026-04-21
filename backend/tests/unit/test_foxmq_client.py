@@ -154,6 +154,34 @@ def test_publish_event_live_connect_nonzero_reason_code(monkeypatch):
     assert ok is True  # falls back to stub
 
 
+def test_publish_event_live_publish_ack_timeout(monkeypatch):
+    """Covers line 102: connected OK, publish called, but on_publish callback
+    never fires within the deadline. The while-loop exits on time.time()."""
+    monkeypatch.setenv("USE_REAL_VERTEX", "true")
+    mock_client = MagicMock()
+
+    def fake_connect(host, port, keepalive):
+        mock_client.on_connect(mock_client, None, None, 0, None)  # connected OK
+
+    mock_client.connect.side_effect = fake_connect
+    # publish() is called but on_publish is NEVER fired
+    mock_client.publish.return_value = MagicMock()
+    mock_client.loop_start = MagicMock()
+    mock_client.loop_stop = MagicMock()
+    mock_client.disconnect = MagicMock()
+
+    # Fake time so the deadline exit fires immediately on the publish wait loop
+    # First few calls: small values for connect loop + first deadline computation
+    # Later calls: huge values to force deadline exit
+    fake_times = iter([0.0, 0.1, 0.2, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0])
+    with patch("paho.mqtt.client.Client", return_value=mock_client), \
+         patch("paho.mqtt.client.CallbackAPIVersion", MagicMock()), \
+         patch("time.sleep"), \
+         patch("time.time", side_effect=lambda: next(fake_times)):
+        ok = foxmq_client.publish_event({"task_id": "abc", "event_type": "y"})
+    assert ok is True  # publish is considered a success even without ack
+
+
 def test_is_live_stub_mode(monkeypatch):
     monkeypatch.setenv("USE_REAL_VERTEX", "false")
     assert foxmq_client.is_live() is False

@@ -20,7 +20,7 @@ import pytest
 
 # Ensure backend root is on sys.path so imports like "app.config" resolve
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
-if str(_BACKEND_ROOT) not in sys.path:
+if str(_BACKEND_ROOT) not in sys.path:  # pragma: no cover -- exercised indirectly
     sys.path.insert(0, str(_BACKEND_ROOT))
 
 # --- Env setup: force stub mode so no real network calls happen -------------
