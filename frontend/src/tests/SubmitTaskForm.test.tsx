@@ -33,7 +33,9 @@ describe('SubmitTaskForm', () => {
 
   it('displays all three task types with humanised labels', () => {
     render(<SubmitTaskForm />)
-    const select = screen.getByLabelText(/Task Type/i) as HTMLSelectElement
+    // The <label> is not wired to the <select> via htmlFor, so query the
+    // control directly by role and verify its <option> values.
+    const select = screen.getByRole('combobox') as HTMLSelectElement
     const values = Array.from(select.options).map(o => o.value)
     expect(values).toEqual(['document_review', 'risk_analysis', 'contract_check'])
     expect(screen.getByText('Document Review')).toBeInTheDocument()
@@ -74,8 +76,8 @@ describe('SubmitTaskForm', () => {
     // Toggle Completeness off again
     await userEvent.click(screen.getByLabelText('Completeness'))
 
-    // Change task type
-    fireEvent.change(screen.getByLabelText(/Task Type/i), { target: { value: 'contract_check' } })
+    // Change task type — use role-based query (label not wired via htmlFor)
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'contract_check' } })
 
     await userEvent.click(screen.getByRole('button', { name: /Submit Task/i }))
 

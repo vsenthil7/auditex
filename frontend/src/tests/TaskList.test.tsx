@@ -46,28 +46,13 @@ describe('TaskList', () => {
     // Count shows 2
     expect(screen.getByText(/\(2\)/)).toBeInTheDocument()
     const buttons = screen.getAllByRole('button')
-    // Newest first — button[0] must contain newtaskid2 prefix
-    expect(buttons[0].textContent).toContain('newtaskid')
-    expect(buttons[1].textContent).toContain('oldtaskid')
+    // The UI truncates task_id to first 8 chars + ellipsis, so match that slice.
+    expect(buttons[0].textContent).toContain('newtaski')  // first 8 of newtaskid2
+    expect(buttons[1].textContent).toContain('oldtaski')  // first 8 of oldtaskid1
   })
 
   it('highlights selected task and fires selectTask on click', () => {
     const selectSpy = vi.fn()
-    resetStore({
-      selectTask: selectSpy,
-      tasks: {
-        t1: {
-          task_id: 't1', task_type: 'risk_analysis', status: 'EXECUTING',
-          created_at: '2026-04-21T10:00:00Z', report_available: false,
-        } as any,
-      },
-    } as any)
-
-    const { container } = render(<TaskList />)
-    const btn = screen.getByRole('button')
-    expect(btn.className).not.toMatch(/border-blue-500/)
-
-    // Re-render with selected
     resetStore({
       selectedTaskId: 't1',
       selectTask: selectSpy,
@@ -78,19 +63,27 @@ describe('TaskList', () => {
         } as any,
       },
     } as any)
-
     render(<TaskList />)
-    // There will now be two renders; grab the most recent rendered button from container
-    const selected = container.querySelector('button.border-blue-500')
-    // The first render (un-selected) still sits in the previous container — but the second
-    // render lives in the document body; assert via a DOM query instead:
-    expect(document.querySelector('button.border-blue-500')).toBeTruthy()
-
-    // Click the rendered button to exercise onClick
-    fireEvent.click(document.querySelectorAll('button')[0] as HTMLElement)
+    const btn = screen.getByRole('button')
+    // Selected styling applied
+    expect(btn.className).toMatch(/border-blue-500/)
+    fireEvent.click(btn)
     expect(selectSpy).toHaveBeenCalledWith('t1')
-    // Avoid dead-code warning -- value validated above via document.querySelector
-    expect(selected === null || selected instanceof HTMLElement).toBe(true)
+  })
+
+  it('applies un-selected border when selectedTaskId does not match', () => {
+    resetStore({
+      selectedTaskId: 'other',
+      tasks: {
+        t1: {
+          task_id: 't1', task_type: 'risk_analysis', status: 'EXECUTING',
+          created_at: '2026-04-21T10:00:00Z', report_available: false,
+        } as any,
+      },
+    })
+    render(<TaskList />)
+    const btn = screen.getByRole('button')
+    expect(btn.className).toMatch(/border-transparent/)
   })
 
   it('shows "Report ready" badge when COMPLETED + report_available', () => {
