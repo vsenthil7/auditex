@@ -587,4 +587,18 @@ describe('TaskDetail — misc RecBadge / recommendation branches', () => {
     // At least one em-dash in the expanded section
     await screen.findByText('—')
   })
+
+  it('executor WITHOUT confidence — ConfBar uses the `?? 0` fallback (line 241)', async () => {
+    setStore({
+      t: {
+        task_id: 'm6', task_type: 'document_review', status: 'COMPLETED',
+        created_at: '2026-04-21T10:00:00Z', report_available: false,
+        executor: { model: 'claude', recommendation: 'APPROVE' },  // no confidence
+      },
+    }, 't')
+    render(<TaskDetail />)
+    await userEvent.click(screen.getByText(/Step 2 — AI Executor/i))
+    // ConfBar should render 0%
+    expect(screen.getByText('0%')).toBeInTheDocument()
+  })
 })

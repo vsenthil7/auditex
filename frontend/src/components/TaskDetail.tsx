@@ -184,14 +184,12 @@ export function TaskDetail() {
                 <div key={stage.status} className="flex items-center flex-1">
                   <div className="flex flex-col items-center flex-1">
                     <div className={`w-3 h-3 rounded-full border-2 transition-all
-                      ${isFailed && active  ? 'bg-red-500 border-red-500 ring-2 ring-red-200' : ''}
                       ${done && !isFailed   ? 'bg-green-500 border-green-500' : ''}
                       ${active && !isFailed ? 'bg-blue-500 border-blue-500 ring-2 ring-blue-200' : ''}
                       ${future             ? 'bg-white border-gray-300' : ''}`}
                     />
                     <span className={`text-xs mt-1 ${
-                      future ? 'text-gray-300' :
-                      isFailed && active ? 'text-red-500' : 'text-gray-600'}`}>
+                      future ? 'text-gray-300' : 'text-gray-600'}`}>
                       {stage.label}
                     </span>
                   </div>
