@@ -440,6 +440,26 @@ function Do-Playwright {
     Log "DONE: Playwright complete. Log: $logFile" "Green"
 }
 
+# == GIT PUSH FORCE UPSTREAM (overwrites remote main) ========================
+function Do-GitPushForceUpstream {
+    Banner "GIT PUSH --force-with-lease --set-upstream origin main"
+    Log "1) git status" "Cyan"; Run "git status"
+    Log "2) git log -5" "Cyan"; Run "git log --oneline -5"
+    Log "3) git remote -v" "Cyan"; Run "git remote -v"
+    Log "4) git push --force-with-lease --set-upstream origin main" "Cyan"
+    $out = & git push --force-with-lease --set-upstream origin main 2>&1
+    $exit = $LASTEXITCODE
+    foreach ($line in $out) { Log "  $line" }
+    Log ""
+    if ($exit -ne 0) {
+        Log "ERROR: git push --force failed with exit code $exit" "Red"
+        Log "DONE (FAILED): Log: $logFile" "Red"
+        exit $exit
+    }
+    Log "5) git status (post-push)" "Cyan"; Run "git status"
+    Log "DONE: Force-upstream push complete. Log: $logFile" "Green"
+}
+
 # == Dispatch =================================================================
 Log ""
 Log "ops.ps1  action=$action  $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')" "Cyan"
@@ -452,6 +472,7 @@ switch ($action) {
     "git-push"          { Do-GitPush }
     "git-remote-add"    { Do-GitRemoteAdd }
     "git-push-upstream" { Do-GitPushUpstream }
+    "git-push-force-upstream" { Do-GitPushForceUpstream }
     "status"            { Do-Status }
     "clear"             { Do-Clear }
     "celery-logs"       { Do-CeleryLogs }
@@ -466,6 +487,6 @@ switch ($action) {
     "all"               { Do-Git; Do-Clear; Do-Playwright }
     default             {
         Log "Unknown action: '$action'" "Red"
-        Log "Valid actions: git, commit-auto, git-push, git-remote-add, git-push-upstream, status, clear, celery-logs, foxmq-logs, docker-ps, git-log, diag, test, pytest, vitest, playwright, all" "Yellow"
+        Log "Valid actions: git, commit-auto, git-push, git-remote-add, git-push-upstream, git-push-force-upstream, status, clear, celery-logs, foxmq-logs, docker-ps, git-log, diag, test, pytest, vitest, playwright, all" "Yellow"
     }
 }
