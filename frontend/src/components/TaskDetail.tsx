@@ -129,6 +129,7 @@ export function TaskDetail() {
   }, [task?.report_available, task?.task_id])
 
   async function handleExport() {
+    /* v8 ignore next -- defensive guard for a code path that isn't reachable today: the export button is only rendered inside {report && <div>...<button>} which itself only renders when task is truthy. Kept to guard against future refactors that move the button outside the report-guarded tree. */
     if (!task) return
     try {
       const data = await exportReport(task.task_id)
