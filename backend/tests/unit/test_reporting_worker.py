@@ -78,8 +78,7 @@ def test_generate_poc_report_sync_wrapper_success():
     ), patch.object(
         reporting_worker, "_generate_report_async", side_effect=fake_coro,
     ):
-        ct = MagicMock()
-        out = reporting_worker.generate_poc_report.__wrapped__(ct, "some-task-id")
+        out = reporting_worker.generate_poc_report.__wrapped__("some-task-id")
     assert out["outcome"] == "GENERATED"
     fake_engine.dispose.assert_called()
 
@@ -100,8 +99,7 @@ def test_generate_poc_report_sync_wrapper_dispose_error_swallowed():
     ), patch.object(
         reporting_worker, "_generate_report_async", side_effect=fake_coro,
     ):
-        ct = MagicMock()
-        out = reporting_worker.generate_poc_report.__wrapped__(ct, "some-task-id")
+        out = reporting_worker.generate_poc_report.__wrapped__("some-task-id")
     assert out["outcome"] == "GENERATED"
 
 

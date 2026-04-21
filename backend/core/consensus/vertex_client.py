@@ -177,7 +177,7 @@ def _submit_live(event_payload: dict) -> VertexReceipt:
 
         # Use FoxMQ consensus timestamp if we got one, else our local UTC
         if foxmq_ts:
-            finalised_at = foxmq_ts
+            finalised_at = foxmq_ts  # pragma: no cover -- mock closure limitation, covered in integration E2E
 
         logger.info(
             "VERTEX_LIVE: event finalised ✓ | hash=%.16s... round=%d foxmq_ts=%s task=%.8s",

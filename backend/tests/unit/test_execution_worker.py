@@ -332,10 +332,9 @@ def test_execute_task_sync_wrapper_success():
     ), patch.object(
         execution_worker, "_execute_task_async", side_effect=fake_coro,
     ):
-        ct = MagicMock()
-        out = execution_worker.execute_task.run.__wrapped__(ct, "some-task-id") \
-            if hasattr(execution_worker.execute_task.run, "__wrapped__") \
-            else execution_worker.execute_task.__wrapped__(ct, "some-task-id")
+        # Celery bound task: __wrapped__ is already bound to `self`, so just
+        # pass task_id. Call `apply(args=[...]).get()` for safer invocation.
+        out = execution_worker.execute_task.__wrapped__("some-task-id")
     assert out["status"] == "COMPLETED"
     fake_engine.dispose.assert_called()  # verify cleanup happened
 
@@ -356,7 +355,6 @@ def test_execute_task_sync_wrapper_dispose_error_swallowed():
     ), patch.object(
         execution_worker, "_execute_task_async", side_effect=fake_coro,
     ):
-        ct = MagicMock()
-        out = execution_worker.execute_task.__wrapped__(ct, "some-task-id")
+        out = execution_worker.execute_task.__wrapped__("some-task-id")
     # Still returns the inner result even though dispose raised
     assert out["status"] == "COMPLETED"
