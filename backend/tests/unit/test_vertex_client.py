@@ -62,6 +62,36 @@ def test_submit_stub_returns_receipt(monkeypatch):
     assert receipt.round >= 1
 
 
+def test_submit_live_success_no_timestamp(monkeypatch):
+    """Covers the `finalised_at = foxmq_ts` non-branch (line 173): when
+    foxmq_ts is None the code should skip the assignment and use the local
+    UTC timestamp."""
+    monkeypatch.setenv("USE_REAL_VERTEX", "true")
+    mock_client = MagicMock()
+
+    def fake_connect(host, port, keepalive):
+        mock_client.on_connect(mock_client, None, None, 0, None)
+
+    mock_client.connect.side_effect = fake_connect
+
+    def fake_publish(topic, payload, qos=0, **kw):
+        # Fire on_publish with NO timestamp user property
+        mock_client.on_publish(mock_client, None, 1, 0, None)
+        return MagicMock()
+
+    mock_client.publish.side_effect = fake_publish
+    mock_client.loop_start = MagicMock()
+    mock_client.loop_stop = MagicMock()
+    mock_client.disconnect = MagicMock()
+
+    with patch("paho.mqtt.client.Client", return_value=mock_client), \
+         patch("redis.from_url", side_effect=RuntimeError("x")):
+        receipt = vertex_client.submit_event({"task_id": "xyz"})
+
+    assert receipt.is_stub is False
+    assert receipt.foxmq_timestamp is None
+
+
 def test_submit_live_success(monkeypatch):
     monkeypatch.setenv("USE_REAL_VERTEX", "true")
     mock_client = MagicMock()

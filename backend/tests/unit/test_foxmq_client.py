@@ -98,16 +98,60 @@ def test_publish_event_live_connect_fail_falls_back(monkeypatch):
 
 
 def test_publish_event_live_exception_falls_back(monkeypatch):
+    """Exception inside the try-block of _publish_real must be caught and
+    the stub fallback must then still return True. We trigger this by making
+    client.connect() raise after Client() succeeds."""
     monkeypatch.setenv("USE_REAL_VERTEX", "true")
-    # Patch import inside _publish_real -- mqtt is imported lazily there
-    import paho.mqtt.client as real_mqtt
 
-    def _boom(*a, **kw):
-        raise RuntimeError("boom")
+    mock_client = MagicMock()
+    mock_client.connect = MagicMock(side_effect=RuntimeError("connect boom"))
+    # loop_stop + disconnect should still be called in the cleanup path
+    mock_client.loop_stop = MagicMock()
+    mock_client.disconnect = MagicMock()
+    mock_client.loop_start = MagicMock()
 
-    monkeypatch.setattr(real_mqtt, "Client", _boom)
-    ok = foxmq_client.publish_event({"task_id": "x", "event_type": "y"})
-    assert ok is True  # never blocks pipeline
+    with patch("paho.mqtt.client.Client", return_value=mock_client), \
+         patch("paho.mqtt.client.CallbackAPIVersion", MagicMock()):
+        ok = foxmq_client.publish_event({"task_id": "x", "event_type": "y"})
+    assert ok is True  # fallback to stub always returns True
+
+
+def test_publish_event_live_cleanup_exception_swallowed(monkeypatch):
+    """Covers the inner try/except around loop_stop+disconnect in the
+    cleanup path (lines 117-122)."""
+    monkeypatch.setenv("USE_REAL_VERTEX", "true")
+
+    mock_client = MagicMock()
+    mock_client.connect = MagicMock(side_effect=RuntimeError("connect boom"))
+    mock_client.loop_stop = MagicMock(side_effect=RuntimeError("cleanup boom"))
+    mock_client.disconnect = MagicMock()
+    mock_client.loop_start = MagicMock()
+
+    with patch("paho.mqtt.client.Client", return_value=mock_client), \
+         patch("paho.mqtt.client.CallbackAPIVersion", MagicMock()):
+        ok = foxmq_client.publish_event({"task_id": "x", "event_type": "y"})
+    assert ok is True
+
+
+def test_publish_event_live_connect_nonzero_reason_code(monkeypatch):
+    """Covers the on_connect `reason_code != 0` branch (line 64)."""
+    monkeypatch.setenv("USE_REAL_VERTEX", "true")
+    mock_client = MagicMock()
+
+    def fake_connect(host, port, keepalive):
+        # Fire on_connect with a FAILED reason code
+        mock_client.on_connect(mock_client, None, None, 5, None)
+
+    mock_client.connect.side_effect = fake_connect
+    mock_client.loop_start = MagicMock()
+    mock_client.loop_stop = MagicMock()
+    mock_client.disconnect = MagicMock()
+
+    with patch("paho.mqtt.client.Client", return_value=mock_client), \
+         patch("paho.mqtt.client.CallbackAPIVersion", MagicMock()), \
+         patch("time.sleep"):
+        ok = foxmq_client.publish_event({"task_id": "abc", "event_type": "y"})
+    assert ok is True  # falls back to stub
 
 
 def test_is_live_stub_mode(monkeypatch):
