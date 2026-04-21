@@ -1,25 +1,23 @@
 # Auditex -- Master Operations Script
 # All output shown on screen AND saved to runs\ops_<action>_<timestamp>.log
-# Claude reads the log file directly -- no need to paste output.
+# Claude reads the log file directly — no need to paste output.
 #
 # Usage:
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action git                -msg "commit message"
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action commit-auto        -msg "commit message"  (non-interactive)
+#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action git          -msg "commit message"
+#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action commit-auto  -msg "commit message"  (non-interactive)
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action git-push
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action git-remote-add     -msg "https://github.com/user/repo.git"
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action git-push-upstream
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action status
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action clear
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action celery-logs
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action foxmq-logs
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action docker-ps
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action git-log
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action diag               (celery+db+docker+git all at once)
+#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action diag         (celery+db+docker+git all at once)
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action test
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action pytest
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action vitest
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action playwright
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action all                -msg "commit message"
+#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action all          -msg "commit message"
 
 param(
     [string]$action = "status",
@@ -68,7 +66,7 @@ function FoxMQLogs($lines = 100) {
     Log ""
 }
 
-# == GIT (interactive, user confirmation required) ============================
+# ── GIT (interactive, user confirmation required) ─────────────────────────────
 function Do-Git {
     if ($msg -eq "") { Log "ERROR: -msg required. Example: -msg `"your message`"" "Red"; exit 1 }
     Banner "GIT COMMIT"
@@ -113,7 +111,7 @@ function Do-Git {
     Log "DONE: Git commit complete. Log: $logFile" "Green"
 }
 
-# == COMMIT-AUTO (non-interactive, for shell-MCP use) =========================
+# ── COMMIT-AUTO (non-interactive, for shell-MCP use) ──────────────────────────
 function Do-CommitAuto {
     if ($msg -eq "") { Log "ERROR: -msg required. Example: -msg `"[TAG] message`"" "Red"; exit 1 }
     Banner "GIT COMMIT (AUTO - no interactive prompt)"
@@ -160,7 +158,7 @@ function Do-CommitAuto {
     Log "DONE: Commit-auto complete. Log: $logFile" "Green"
 }
 
-# == GIT-PUSH =================================================================
+# ── GIT-PUSH ──────────────────────────────────────────────────────────────────
 function Do-GitPush {
     Banner "GIT PUSH"
     Log "1) git status (pre-push)" "Cyan"; Run "git status"
@@ -179,46 +177,7 @@ function Do-GitPush {
     Log "DONE: Git push complete. Log: $logFile" "Green"
 }
 
-# == GIT REMOTE ADD ===========================================================
-function Do-GitRemoteAdd {
-    if ($msg -eq "") { Log "ERROR: -msg required (used as remote URL)." "Red"; exit 1 }
-    Banner "GIT REMOTE ADD origin"
-    Log "1) existing remotes" "Cyan"; Run "git remote -v"
-    Log "2) git remote add origin $msg" "Cyan"
-    $out = & git remote add origin $msg 2>&1
-    $exit = $LASTEXITCODE
-    foreach ($line in $out) { Log "  $line" }
-    Log ""
-    if ($exit -ne 0) {
-        Log "ERROR: git remote add failed with exit code $exit" "Red"
-        Log "DONE (FAILED): Log: $logFile" "Red"
-        exit $exit
-    }
-    Log "3) confirm remote" "Cyan"; Run "git remote -v"
-    Log "DONE: Remote added. Log: $logFile" "Green"
-}
-
-# == GIT PUSH UPSTREAM (first push to set upstream) ===========================
-function Do-GitPushUpstream {
-    Banner "GIT PUSH --set-upstream origin main"
-    Log "1) git status" "Cyan"; Run "git status"
-    Log "2) git log -5" "Cyan"; Run "git log --oneline -5"
-    Log "3) git remote -v" "Cyan"; Run "git remote -v"
-    Log "4) git push --set-upstream origin main" "Cyan"
-    $out = & git push --set-upstream origin main 2>&1
-    $exit = $LASTEXITCODE
-    foreach ($line in $out) { Log "  $line" }
-    Log ""
-    if ($exit -ne 0) {
-        Log "ERROR: git push --set-upstream failed with exit code $exit" "Red"
-        Log "DONE (FAILED): Log: $logFile" "Red"
-        exit $exit
-    }
-    Log "5) git status (post-push)" "Cyan"; Run "git status"
-    Log "DONE: Upstream set and pushed. Log: $logFile" "Green"
-}
-
-# == DB STATUS ================================================================
+# ── DB STATUS ──────────────────────────────────────────────────────────────────
 function Do-Status {
     Banner "DB STATUS"
     SQL "Task status counts"  "SELECT status, COUNT(*) FROM tasks GROUP BY status ORDER BY COUNT(*) DESC"
@@ -229,7 +188,7 @@ function Do-Status {
     Log "DONE: Status complete. Log: $logFile" "Green"
 }
 
-# == CLEAR STUCK QUEUE ========================================================
+# ── CLEAR STUCK QUEUE ──────────────────────────────────────────────────────────
 function Do-Clear {
     Banner "CLEAR STUCK QUEUE"
     Log "BEFORE:" "Yellow"
@@ -243,21 +202,21 @@ function Do-Clear {
     Log "DONE: Queue cleared. Log: $logFile" "Green"
 }
 
-# == CELERY LOGS ==============================================================
+# ── CELERY LOGS ────────────────────────────────────────────────────────────────
 function Do-CeleryLogs {
     Banner "CELERY WORKER LOGS (last 100 lines)"
     CeleryLogs 100
     Log "DONE: Celery logs captured. Log: $logFile" "Green"
 }
 
-# == FOXMQ LOGS ===============================================================
+# ── FOXMQ LOGS ────────────────────────────────────────────────────────────────
 function Do-FoxMQLogs {
     Banner "FOXMQ BROKER LOGS (last 100 lines)"
     FoxMQLogs 100
     Log "DONE: FoxMQ logs captured. Log: $logFile" "Green"
 }
 
-# == DOCKER PS ================================================================
+# ── DOCKER PS ─────────────────────────────────────────────────────────────────
 function Do-DockerPs {
     Banner "DOCKER CONTAINER STATUS"
     Log ">> docker compose ps" "Yellow"
@@ -271,14 +230,14 @@ function Do-DockerPs {
     Log "DONE: Docker status captured. Log: $logFile" "Green"
 }
 
-# == GIT LOG ==================================================================
+# ── GIT LOG ───────────────────────────────────────────────────────────────────
 function Do-GitLog {
     Banner "GIT LOG (last 15 commits)"
     Run "git log --oneline -15"
     Log "DONE: Git log captured. Log: $logFile" "Green"
 }
 
-# == DIAG (everything in one shot) ============================================
+# ── DIAG (everything in one shot) ─────────────────────────────────────────────
 function Do-Diag {
     Banner "FULL DIAGNOSTIC"
     Log "Running: git-log + docker-ps + db-status + celery-logs + foxmq-logs" "Cyan"
@@ -310,7 +269,7 @@ function Do-Diag {
     Log "DONE: Full diagnostic complete. Log: $logFile" "Green"
 }
 
-# == TEST db_clear_queue ======================================================
+# ── TEST db_clear_queue ────────────────────────────────────────────────────────
 function Do-Test {
     Banner "TEST db_clear_queue (stuck scenario)"
     Log "STEP 1: Current state" "Yellow"
@@ -332,7 +291,7 @@ function Do-Test {
     Log "DONE: Test complete. Log: $logFile" "Green"
 }
 
-# == PYTEST (backend unit + integration) ======================================
+# ── PYTEST (backend unit + integration) ───────────────────────────────────────
 function Do-Pytest {
     Banner "PYTEST -- backend test suite (inside api container)"
 
@@ -366,7 +325,7 @@ function Do-Pytest {
     exit $pytestExit
 }
 
-# == VITEST (frontend unit + component) =======================================
+# ── VITEST (frontend unit + component) ────────────────────────────────────────
 function Do-Vitest {
     Banner "VITEST -- frontend component tests"
 
@@ -399,7 +358,7 @@ function Do-Vitest {
     exit $vitestExit
 }
 
-# == PLAYWRIGHT ===============================================================
+# ── PLAYWRIGHT ────────────────────────────────────────────────────────────────
 function Do-Playwright {
     Banner "PLAYWRIGHT TESTS"
 
@@ -440,32 +399,30 @@ function Do-Playwright {
     Log "DONE: Playwright complete. Log: $logFile" "Green"
 }
 
-# == Dispatch =================================================================
+# ── Dispatch ───────────────────────────────────────────────────────────────────
 Log ""
 Log "ops.ps1  action=$action  $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')" "Cyan"
 Log "Log: $logFile" "Cyan"
 Log ""
 
 switch ($action) {
-    "git"               { Do-Git }
-    "commit-auto"       { Do-CommitAuto }
-    "git-push"          { Do-GitPush }
-    "git-remote-add"    { Do-GitRemoteAdd }
-    "git-push-upstream" { Do-GitPushUpstream }
-    "status"            { Do-Status }
-    "clear"             { Do-Clear }
-    "celery-logs"       { Do-CeleryLogs }
-    "foxmq-logs"        { Do-FoxMQLogs }
-    "docker-ps"         { Do-DockerPs }
-    "git-log"           { Do-GitLog }
-    "diag"              { Do-Diag }
-    "test"              { Do-Test }
-    "pytest"            { Do-Pytest }
-    "vitest"            { Do-Vitest }
-    "playwright"        { Do-Playwright }
-    "all"               { Do-Git; Do-Clear; Do-Playwright }
-    default             {
+    "git"          { Do-Git }
+    "commit-auto"  { Do-CommitAuto }
+    "git-push"     { Do-GitPush }
+    "status"       { Do-Status }
+    "clear"        { Do-Clear }
+    "celery-logs"  { Do-CeleryLogs }
+    "foxmq-logs"   { Do-FoxMQLogs }
+    "docker-ps"    { Do-DockerPs }
+    "git-log"      { Do-GitLog }
+    "diag"         { Do-Diag }
+    "test"         { Do-Test }
+    "pytest"       { Do-Pytest }
+    "vitest"       { Do-Vitest }
+    "playwright"   { Do-Playwright }
+    "all"          { Do-Git; Do-Clear; Do-Playwright }
+    default        {
         Log "Unknown action: '$action'" "Red"
-        Log "Valid actions: git, commit-auto, git-push, git-remote-add, git-push-upstream, status, clear, celery-logs, foxmq-logs, docker-ps, git-log, diag, test, pytest, vitest, playwright, all" "Yellow"
+        Log "Valid actions: git, commit-auto, git-push, status, clear, celery-logs, foxmq-logs, docker-ps, git-log, diag, test, pytest, vitest, playwright, all" "Yellow"
     }
 }
