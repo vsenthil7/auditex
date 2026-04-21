@@ -143,8 +143,11 @@ def sample_task(sample_task_id):
     task.consensus_result = "3_OF_3_APPROVE"
     task.vertex_event_hash = "a" * 64
     task.vertex_round = 1
-    task.vertex_finalised_at = datetime.now(timezone.utc)
-    task.created_at = datetime.now(timezone.utc)
+    # Use MagicMock for datetime fields so tests can override .isoformat() freely
+    task.vertex_finalised_at = MagicMock()
+    task.vertex_finalised_at.isoformat = MagicMock(return_value="2026-04-21T01:00:00+00:00")
+    task.created_at = MagicMock()
+    task.created_at.isoformat = MagicMock(return_value="2026-04-21T00:00:00+00:00")
     task.executor_confidence = 0.9
     task.retry_count = 0
     task.report_available = True
@@ -164,7 +167,8 @@ def sample_report():
     })
     report.schema_version = "poc_report_v1"
     report.vertex_event_hash = "b" * 64
-    report.generated_at = datetime.now(timezone.utc)
+    report.generated_at = MagicMock()
+    report.generated_at.isoformat = MagicMock(return_value="2026-04-21T00:00:00+00:00")
     report.generator_model = "claude-sonnet-4-6"
     return report
 
@@ -179,5 +183,6 @@ def sample_agent(sample_agent_id):
     agent.public_key = None
     agent.is_active = True
     agent.capabilities = json.dumps(["document_review"])
-    agent.created_at = datetime.now(timezone.utc)
+    agent.created_at = MagicMock()
+    agent.created_at.isoformat = MagicMock(return_value="2026-04-21T00:00:00+00:00")
     return agent
