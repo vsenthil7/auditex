@@ -5,11 +5,12 @@ All database access for the reports table goes through here.
 Methods:
   create_report()            -- INSERT new Report record
   get_report_by_task_id()    -- SELECT report by task UUID
+  sign_report()              -- persist an export signature on an existing Report
 """
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,3 +59,35 @@ async def get_report_by_task_id(
         select(Report).where(Report.task_id == task_id)
     )
     return result.scalar_one_or_none()
+
+
+async def sign_report(
+    session: AsyncSession,
+    task_id: uuid.UUID,
+    *,
+    signature_hex: str,
+    signing_key_id: str,
+    signed_at: datetime | None = None,
+) -> Report | None:
+    """
+    Persist an HMAC export signature on the Report for ``task_id``.
+
+    - Returns the updated Report on success.
+    - Returns None if no Report exists for the task (caller decides 404 vs create).
+    - ``signed_at`` defaults to now (UTC) if not supplied.
+
+    This function does NOT compute or verify the signature -- it only stores
+    the values. Signing/verification live in core.reporting.export_signer.
+    The separation keeps crypto out of the data layer.
+    """
+    report = await get_report_by_task_id(session, task_id)
+    if report is None:
+        return None
+
+    report.org_signature = signature_hex
+    report.signing_key_id = signing_key_id
+    report.signed_at = signed_at or datetime.now(timezone.utc)
+
+    await session.flush()
+    await session.refresh(report)
+    return report
