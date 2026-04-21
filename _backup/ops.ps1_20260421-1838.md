@@ -3,21 +3,17 @@
 # Claude reads the log file directly — no need to paste output.
 #
 # Usage:
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action git          -msg "commit message"
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action commit-auto  -msg "commit message"  (non-interactive)
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action git-push
+#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action git        -msg "commit message"
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action status
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action clear
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action celery-logs
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action foxmq-logs
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action docker-ps
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action git-log
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action diag         (celery+db+docker+git all at once)
+#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action diag       (celery+db+docker+git all at once)
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action test
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action pytest
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action vitest
 #   powershell -ExecutionPolicy Bypass -File ops.ps1 -action playwright
-#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action all          -msg "commit message"
+#   powershell -ExecutionPolicy Bypass -File ops.ps1 -action all        -msg "commit message"
 
 param(
     [string]$action = "status",
@@ -66,7 +62,7 @@ function FoxMQLogs($lines = 100) {
     Log ""
 }
 
-# ── GIT (interactive, user confirmation required) ─────────────────────────────
+# ── GIT ────────────────────────────────────────────────────────────────────────
 function Do-Git {
     if ($msg -eq "") { Log "ERROR: -msg required. Example: -msg `"your message`"" "Red"; exit 1 }
     Banner "GIT COMMIT"
@@ -109,72 +105,6 @@ function Do-Git {
 
     Log "9) date" "Cyan"; Log (Get-Date -Format "dd/MM/yyyy HH:mm:ss"); Log ""
     Log "DONE: Git commit complete. Log: $logFile" "Green"
-}
-
-# ── COMMIT-AUTO (non-interactive, for shell-MCP use) ──────────────────────────
-function Do-CommitAuto {
-    if ($msg -eq "") { Log "ERROR: -msg required. Example: -msg `"[TAG] message`"" "Red"; exit 1 }
-    Banner "GIT COMMIT (AUTO - no interactive prompt)"
-    Log "1) date" "Cyan"; Log (Get-Date -Format "dd/MM/yyyy HH:mm:ss"); Log ""
-
-    Log "2) git status (pre)" "Cyan"; Run "git status"
-
-    Log "3) git diff - reviewing all changes" "Cyan"
-    $statusLines = git status --porcelain 2>&1
-    foreach ($entry in $statusLines) {
-        if ($entry.Length -lt 3) { continue }
-        $flag = $entry.Substring(0,2).Trim()
-        $file = $entry.Substring(3).Trim()
-        Log "---- diff: $file [$flag] ----" "Yellow"
-        if ($flag -eq "??") {
-            Log "  (untracked new file - no diff available until staged)" "Yellow"
-        } else {
-            $diffOut = & git diff -- $file 2>&1
-            foreach ($dl in $diffOut) { Log "  $dl" }
-        }
-        Log ""
-    }
-
-    Log "4) git add -A" "Cyan"; Run "git add -A"
-
-    Log "5) git status (staged)" "Cyan"; Run "git status"
-
-    Log "6) git commit -m ""$msg""" "Cyan"
-    $out = & git commit -m $msg 2>&1
-    $exit = $LASTEXITCODE
-    foreach ($line in $out) { Log "  $line" }
-    Log ""
-
-    if ($exit -ne 0) {
-        Log "ERROR: git commit failed with exit code $exit" "Red"
-        Log "DONE (FAILED): Log: $logFile" "Red"
-        exit $exit
-    }
-
-    Log "7) git status (post)" "Cyan"; Run "git status"
-    Log "8) git log -1" "Cyan"; Run "git log --oneline -1"
-
-    Log "9) date" "Cyan"; Log (Get-Date -Format "dd/MM/yyyy HH:mm:ss"); Log ""
-    Log "DONE: Commit-auto complete. Log: $logFile" "Green"
-}
-
-# ── GIT-PUSH ──────────────────────────────────────────────────────────────────
-function Do-GitPush {
-    Banner "GIT PUSH"
-    Log "1) git status (pre-push)" "Cyan"; Run "git status"
-    Log "2) git log -3" "Cyan"; Run "git log --oneline -3"
-    Log "3) git push" "Cyan"
-    $out = & git push 2>&1
-    $exit = $LASTEXITCODE
-    foreach ($line in $out) { Log "  $line" }
-    Log ""
-    if ($exit -ne 0) {
-        Log "ERROR: git push failed with exit code $exit" "Red"
-        Log "DONE (FAILED): Log: $logFile" "Red"
-        exit $exit
-    }
-    Log "4) git status (post-push)" "Cyan"; Run "git status"
-    Log "DONE: Git push complete. Log: $logFile" "Green"
 }
 
 # ── DB STATUS ──────────────────────────────────────────────────────────────────
@@ -291,73 +221,6 @@ function Do-Test {
     Log "DONE: Test complete. Log: $logFile" "Green"
 }
 
-# ── PYTEST (backend unit + integration) ───────────────────────────────────────
-function Do-Pytest {
-    Banner "PYTEST -- backend test suite (inside api container)"
-
-    Log "STEP 1: Confirm api container running" "Yellow"
-    $psOut = docker compose ps --services --status running 2>&1
-    foreach ($line in $psOut) { Log "  $line" }
-    $running = $psOut -join " "
-    if ($running -notmatch "\bapi\b") {
-        Log "ERROR: api container is not running. Start with 'docker compose up -d'" "Red"
-        Log "DONE (FAILED): Log: $logFile" "Red"
-        exit 1
-    }
-    Log "  api container: running" "Green"
-    Log ""
-
-    Log "STEP 2: Run pytest with coverage" "Yellow"
-    Log "> docker compose exec -T api pytest tests/ -v --tb=short --cov=. --cov-report=term-missing --cov-report=html:tests/coverage_html --cov-fail-under=100" "Yellow"
-    Log ""
-    & docker compose exec -T api pytest tests/ -v --tb=short --cov=. --cov-report=term-missing --cov-report=html:tests/coverage_html --cov-fail-under=100 2>&1 | Tee-Object -FilePath $logFile -Append
-    $pytestExit = $LASTEXITCODE
-    Log ""
-    Log "pytest exit code: $pytestExit" "Cyan"
-
-    if ($pytestExit -eq 0) {
-        Log "PASS: pytest 100% coverage achieved" "Green"
-    } else {
-        Log "FAIL: pytest exit code $pytestExit (tests failed OR coverage below 100%)" "Red"
-    }
-
-    Log "DONE: pytest complete. Log: $logFile" "Green"
-    exit $pytestExit
-}
-
-# ── VITEST (frontend unit + component) ────────────────────────────────────────
-function Do-Vitest {
-    Banner "VITEST -- frontend component tests"
-
-    $frontendDir = Join-Path $root "frontend"
-    Set-Location $frontendDir
-    Log "> cd $frontendDir" "Yellow"
-
-    Log "STEP 1: npm install (ensure vitest + testing-library installed)" "Yellow"
-    Log "> npm install" "Yellow"
-    & npm install 2>&1 | Tee-Object -FilePath $logFile -Append
-    Log ""
-
-    Log "STEP 2: Run vitest with coverage" "Yellow"
-    Log "> npx vitest run --coverage" "Yellow"
-    Log ""
-    & npx vitest run --coverage 2>&1 | Tee-Object -FilePath $logFile -Append
-    $vitestExit = $LASTEXITCODE
-    Log ""
-    Log "vitest exit code: $vitestExit" "Cyan"
-
-    Set-Location $root
-
-    if ($vitestExit -eq 0) {
-        Log "PASS: vitest suite green" "Green"
-    } else {
-        Log "FAIL: vitest exit code $vitestExit" "Red"
-    }
-
-    Log "DONE: vitest complete. Log: $logFile" "Green"
-    exit $vitestExit
-}
-
 # ── PLAYWRIGHT ────────────────────────────────────────────────────────────────
 function Do-Playwright {
     Banner "PLAYWRIGHT TESTS"
@@ -406,23 +269,19 @@ Log "Log: $logFile" "Cyan"
 Log ""
 
 switch ($action) {
-    "git"          { Do-Git }
-    "commit-auto"  { Do-CommitAuto }
-    "git-push"     { Do-GitPush }
-    "status"       { Do-Status }
-    "clear"        { Do-Clear }
-    "celery-logs"  { Do-CeleryLogs }
-    "foxmq-logs"   { Do-FoxMQLogs }
-    "docker-ps"    { Do-DockerPs }
-    "git-log"      { Do-GitLog }
-    "diag"         { Do-Diag }
-    "test"         { Do-Test }
-    "pytest"       { Do-Pytest }
-    "vitest"       { Do-Vitest }
-    "playwright"   { Do-Playwright }
-    "all"          { Do-Git; Do-Clear; Do-Playwright }
-    default        {
+    "git"         { Do-Git }
+    "status"      { Do-Status }
+    "clear"       { Do-Clear }
+    "celery-logs" { Do-CeleryLogs }
+    "foxmq-logs"  { Do-FoxMQLogs }
+    "docker-ps"   { Do-DockerPs }
+    "git-log"     { Do-GitLog }
+    "diag"        { Do-Diag }
+    "test"        { Do-Test }
+    "playwright"  { Do-Playwright }
+    "all"         { Do-Git; Do-Clear; Do-Playwright }
+    default       {
         Log "Unknown action: '$action'" "Red"
-        Log "Valid actions: git, commit-auto, git-push, status, clear, celery-logs, foxmq-logs, docker-ps, git-log, diag, test, pytest, vitest, playwright, all" "Yellow"
+        Log "Valid actions: git, status, clear, celery-logs, foxmq-logs, docker-ps, git-log, diag, test, playwright, all" "Yellow"
     }
 }
