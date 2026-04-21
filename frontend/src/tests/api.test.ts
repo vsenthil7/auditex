@@ -241,6 +241,58 @@ describe('api.getReport + transformReport', () => {
     expect(findings.some(f => f.includes('drop_array'))).toBe(false)
     expect(findings.some(f => f.includes('drop_obj'))).toBe(false)
   })
+
+  it('article 9 with missing risk_assessment hits the `?? ""` fallback', async () => {
+    installFetch([{
+      ok: true,
+      body: {
+        task_id: 'missing-risk', plain_english_summary: '', generated_at: '',
+        eu_ai_act: { article_9_risk_management: {} },
+      },
+    }])
+    const { getReport } = await import('../services/api')
+    const r = await getReport('missing-risk')
+    // Missing risk_assessment → empty string → neither LOW nor HIGH → PARTIAL
+    expect(r.eu_ai_act_compliance[0].status).toBe('PARTIAL')
+  })
+
+  it('article 13 reviewer with missing confidence uses the `?? 0` fallback', async () => {
+    installFetch([{
+      ok: true,
+      body: {
+        task_id: 'rev-noconf', plain_english_summary: '', generated_at: '',
+        eu_ai_act: {
+          article_13_transparency: {
+            consensus: '1_OF_3_APPROVE',
+            reviewers: [{ model: 'gpt-4o', verdict: 'APPROVE' }],  // no confidence
+          },
+        },
+      },
+    }])
+    const { getReport } = await import('../services/api')
+    const r = await getReport('rev-noconf')
+    // 0 * 100 = 0 → "0%"
+    expect(
+      r.eu_ai_act_compliance[0].findings.some(f => f.includes('(0%)')),
+    ).toBe(true)
+  })
+
+  it('missing overall_recommendation + confidence_score fall back to REVIEW and 0', async () => {
+    installFetch([{
+      ok: true,
+      body: {
+        task_id: 'no-rec', plain_english_summary: '', generated_at: '',
+        eu_ai_act: {
+          // Neither article_9 nor article_13 is present → fallback paths taken
+          article_17_quality_management: { all_commitments_verified: true },
+        },
+      },
+    }])
+    const { getReport } = await import('../services/api')
+    const r = await getReport('no-rec')
+    expect(r.overall_recommendation).toBe('REVIEW')
+    expect(r.confidence_score).toBe(0)
+  })
 })
 
 describe('api.exportReport + transformExport', () => {
@@ -295,5 +347,13 @@ describe('api.exportReport + transformExport', () => {
     const { exportReport } = await import('../services/api')
     const r = await exportReport('exp3')
     expect(r.articles[0].findings).toEqual(['ok val: yes'])
+  })
+
+  it('empty payload — missing task_id falls through to empty-string default', async () => {
+    installFetch([{ ok: true, body: {} }])
+    const { exportReport } = await import('../services/api')
+    const r = await exportReport('whatever')
+    expect(r.task_id).toBe('')
+    expect(r.articles).toEqual([])
   })
 })

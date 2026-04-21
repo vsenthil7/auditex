@@ -171,6 +171,27 @@ describe('refreshTasks enrichment', () => {
     expect(useTaskStore.getState().tasks['plain']).toBeDefined()
   })
 
+  it('existing but NOT enriched COMPLETED task falls to the plain normalise path', async () => {
+    // Task exists in store, COMPLETED, report_available=true, BUT with
+    // executor/review/vertex all null — triggers the falsy branch of
+    // `existing && (existing.executor || existing.review || existing.vertex)`
+    useTaskStore.setState({
+      tasks: {
+        dull: {
+          task_id: 'dull', task_type: 'document_review', status: 'COMPLETED',
+          created_at: '2026-04-21T00:00:00Z', report_available: true,
+          executor: null, review: null, vertex: null,
+        } as any,
+      },
+    })
+    vi.mocked(api.listTasks).mockResolvedValue({
+      tasks: [{ task_id: 'dull', status: 'COMPLETED', report_available: true } as any],
+    } as any)
+    await useTaskStore.getState().refreshTasks()
+    expect(api.getTask).not.toHaveBeenCalled()
+    expect(useTaskStore.getState().tasks['dull']).toBeDefined()
+  })
+
   it('accepts missing `tasks` field on list response', async () => {
     vi.mocked(api.listTasks).mockResolvedValue({} as any)
     await useTaskStore.getState().refreshTasks()

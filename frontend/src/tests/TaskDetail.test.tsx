@@ -509,6 +509,24 @@ describe('TaskDetail — misc RecBadge / recommendation branches', () => {
     ).toBeGreaterThanOrEqual(1)
   })
 
+  it('RecBadge in the report card renders dash when overall_recommendation is empty string', async () => {
+    vi.mocked(api.getReport).mockResolvedValue({
+      task_id: 'rec-empty', generated_at: '', plain_english_summary: '',
+      overall_recommendation: '',   // triggers the `rec || '—'` fallback (line 83 of TaskDetail)
+      confidence_score: 0.5, eu_ai_act_compliance: [],
+    } as any)
+    setStore({
+      p: {
+        task_id: 'rec-empty', task_type: 'document_review', status: 'COMPLETED',
+        created_at: '2026-04-21T10:00:00Z', report_available: true,
+      },
+    }, 'p')
+    render(<TaskDetail />)
+    await waitFor(() => expect(api.getReport).toHaveBeenCalled())
+    // A dash appears inside the rec-badge span
+    await screen.findByText('—')
+  })
+
   it('unknown recommendation colour branch (blank)', () => {
     setStore({
       t: {
@@ -517,10 +535,6 @@ describe('TaskDetail — misc RecBadge / recommendation branches', () => {
       },
     }, 't')
     render(<TaskDetail />)
-    // Executor section absent since no executor supplied — but the RecBadge fallback
-    // for Step 5 report_available=false path is covered in other tests.
-    // This test purely validates the un-selected/no-executor empty render path,
-    // which is already green via lifecycle tests above.
     expect(screen.getByText('EXECUTING')).toBeInTheDocument()
   })
 })
