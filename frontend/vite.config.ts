@@ -47,7 +47,7 @@ export default defineConfig({
       thresholds: {
         lines: 100,
         functions: 100,
-        branches: 95,       // v8 counts template-literal short-circuits; 95% proves every code path exercised
+        branches: 100,
         statements: 100,
       },
     },

@@ -293,6 +293,24 @@ describe('api.getReport + transformReport', () => {
     expect(r.overall_recommendation).toBe('REVIEW')
     expect(r.confidence_score).toBe(0)
   })
+
+  it('eu_ai_act entry with null value hits the `val ?? {}` fallback (line 64)', async () => {
+    installFetch([{
+      ok: true,
+      body: {
+        task_id: 'null-val', plain_english_summary: '', generated_at: '',
+        eu_ai_act: {
+          article_9_risk_management: null,  // triggers (val ?? {}) fallback
+        },
+      },
+    }])
+    const { getReport } = await import('../services/api')
+    const r = await getReport('null-val')
+    expect(r.eu_ai_act_compliance).toHaveLength(1)
+    expect(r.eu_ai_act_compliance[0].article).toBe('Article 9')
+    // With no data fields, no findings extracted
+    expect(r.eu_ai_act_compliance[0].findings).toEqual([])
+  })
 })
 
 describe('api.exportReport + transformExport', () => {

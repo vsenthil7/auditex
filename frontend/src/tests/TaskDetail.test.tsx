@@ -565,4 +565,26 @@ describe('TaskDetail — misc RecBadge / recommendation branches', () => {
     await userEvent.click(screen.getByText(/Step 1 — Submission/i))
     expect(screen.queryByText(/Workflow ID/i)).not.toBeInTheDocument()
   })
+
+  it('executor WITHOUT recommendation — Step 2 renders with no badge (lines 230/234 falsy branches)', async () => {
+    setStore({
+      t: {
+        task_id: 'm5', task_type: 'document_review', status: 'EXECUTING',
+        created_at: '2026-04-21T10:00:00Z', report_available: false,
+        // Executor exists but recommendation is missing AND no nested output.recommendation
+        // → execRec === '' (falsy) → line 230 `execRec || undefined` yields undefined
+        // → line 234 final ternary `execRec ? ... : undefined` takes the falsy arm
+        executor: { model: 'claude', confidence: 0.5 },
+      },
+    }, 't')
+    render(<TaskDetail />)
+    // Section header is present
+    expect(screen.getByText(/Step 2 — AI Executor/i)).toBeInTheDocument()
+    // Header-level RecBadge is NOT rendered because execRec is falsy → {execRec && <RecBadge ...>}
+    // is falsy, so the header RecBadge dash is absent. Inside Step 2 when expanded,
+    // the Recommendation row renders RecBadge with empty string → shows the "—" fallback.
+    await userEvent.click(screen.getByText(/Step 2 — AI Executor/i))
+    // At least one em-dash in the expanded section
+    await screen.findByText('—')
+  })
 })
