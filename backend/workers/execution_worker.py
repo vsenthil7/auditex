@@ -14,12 +14,16 @@ gone. pool_pre_ping=True then tries to ping using the dead loop and raises:
 Fix: each task invocation creates its own engine + session factory from
 scratch, uses it for the whole task, then disposes it in the finally block.
 This means each task gets a fresh pool bound to its own event loop.
+
+Phase 9 fix: _STUB_MODE removed from vertex_client (replaced by USE_REAL_VERTEX
+env var). vertex_stub_mode now derived from env var directly in task body.
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -97,9 +101,12 @@ async def _execute_task_async(celery_task, task_id_str: str, AsyncSessionLocal) 
     from core.review.hash_commitment import SecurityViolationError
     from core.consensus.event_builder import build_task_completed_event
     from core.consensus.foxmq_client import publish_event as foxmq_publish
-    from core.consensus.vertex_client import submit_event as vertex_submit, _STUB_MODE as vertex_stub_mode
+    from core.consensus.vertex_client import submit_event as vertex_submit
     from db.repositories import event_repo, task_repo
     from services.claude_service import ClaudeServiceError
+
+    # Phase 9: stub mode derived from env var (USE_REAL_VERTEX=true = LIVE mode)
+    vertex_stub_mode = os.environ.get("USE_REAL_VERTEX", "false").lower() != "true"
 
     task_id = uuid.UUID(task_id_str)
     now = datetime.now(timezone.utc)
