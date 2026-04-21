@@ -537,4 +537,32 @@ describe('TaskDetail — misc RecBadge / recommendation branches', () => {
     render(<TaskDetail />)
     expect(screen.getByText('EXECUTING')).toBeInTheDocument()
   })
+
+  it('non-standard executor recommendation falls to the yellow-tier badge branch', async () => {
+    setStore({
+      t: {
+        task_id: 'm3', task_type: 'document_review', status: 'COMPLETED',
+        created_at: '2026-04-21T10:00:00Z', report_available: false,
+        executor: { model: 'x', confidence: 0.5, recommendation: 'ESCALATE' },  // not in the colour chain
+      },
+    }, 't')
+    render(<TaskDetail />)
+    // The Section appears with Step 2 header; the badgeColour falls to the final
+    // `execRec ? 'bg-yellow-100 ...' : undefined` branch because ESCALATE is truthy
+    // but not APPROVE/REJECT.
+    expect(screen.getByText(/Step 2 — AI Executor/i)).toBeInTheDocument()
+  })
+
+  it('task without workflow_id omits the Workflow ID KV row', async () => {
+    setStore({
+      t: {
+        task_id: 'm4', task_type: 'document_review', status: 'QUEUED',
+        created_at: '2026-04-21T10:00:00Z', report_available: false,
+        // NO workflow_id -> exercises the falsy branch of `task.workflow_id && <KV ...>`
+      },
+    }, 't')
+    render(<TaskDetail />)
+    await userEvent.click(screen.getByText(/Step 1 — Submission/i))
+    expect(screen.queryByText(/Workflow ID/i)).not.toBeInTheDocument()
+  })
 })
