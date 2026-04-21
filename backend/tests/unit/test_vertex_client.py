@@ -92,6 +92,45 @@ def test_submit_live_success_no_timestamp(monkeypatch):
     assert receipt.foxmq_timestamp is None
 
 
+def test_submit_live_publish_ack_timeout_exercises_sleep(monkeypatch):
+    """Covers line 173 (`time.sleep(0.05)` inside the publish-ack wait loop).
+    Do NOT globally patch time.sleep here -- we need the real sleep to run at
+    least once. Use a fake time.time that progresses fast enough to exit the
+    loop after one iteration."""
+    monkeypatch.setenv("USE_REAL_VERTEX", "true")
+    mock_client = MagicMock()
+
+    def fake_connect(host, port, keepalive):
+        mock_client.on_connect(mock_client, None, None, 0, None)
+
+    mock_client.connect.side_effect = fake_connect
+    # Critical: publish() does NOT fire on_publish, so `published` stays False
+    mock_client.publish.return_value = MagicMock()
+    mock_client.loop_start = MagicMock()
+    mock_client.loop_stop = MagicMock()
+    mock_client.disconnect = MagicMock()
+
+    # time sequence that allows connect loop (needs True then False), then
+    # publish wait-loop to iterate once then exit:
+    #   1. connect deadline set:          0.0
+    #   2. connect while-check time.time: 0.0 (< deadline)
+    #   3. (connected=True via callback, connect loop exits)
+    #   4. publish deadline set:          0.0
+    #   5. publish while-check time.time: 0.0 (< deadline, enters loop)
+    #   6. time.sleep(0.05) runs         <-- line 173 target
+    #   7. publish while-check time.time: 100.0 (>= deadline, exits loop)
+    fake_times = iter([0.0, 0.0, 0.0, 0.0, 0.0, 100.0])
+    with patch("paho.mqtt.client.Client", return_value=mock_client), \
+         patch("redis.from_url", side_effect=RuntimeError("x")), \
+         patch.object(vertex_client.time, "time", side_effect=lambda: next(fake_times, 100.0)):
+        receipt = vertex_client.submit_event({"task_id": "ack-timeout"})
+
+    # publish never ack'd but we still return a receipt (not stub, since we
+    # did connect successfully)
+    assert receipt.is_stub is False
+    assert receipt.foxmq_timestamp is None
+
+
 def test_submit_live_success(monkeypatch):
     monkeypatch.setenv("USE_REAL_VERTEX", "true")
     mock_client = MagicMock()
