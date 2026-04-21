@@ -32,8 +32,11 @@ test.describe('Error States', () => {
     await expect(detail).toBeVisible()
     await expect(detail.getByText(/Task Failed/i)).toBeVisible()
     await expect(detail.getByText(/Claude API timeout/i)).toBeVisible()
-    // Red dot in the lifecycle timeline
-    expect(await detail.locator('.bg-red-500.border-red-500').count()).toBeGreaterThan(0)
+    // Red failure banner uses bg-red-50 / border-red-200 / text-red-{600,700}.
+    // (The lifecycle dots themselves don't turn red because the FAILED/ESCALATED
+    // statuses aren't one of the pipeline stages — failure is communicated via
+    // the banner below.)
+    expect(await detail.locator('.bg-red-50.border-red-200').count()).toBeGreaterThan(0)
   })
 
   test('TC-16b ESCALATED task uses default failure copy when no error_message', async ({ page }) => {
