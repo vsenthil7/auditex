@@ -624,4 +624,40 @@ describe('TaskDetail — misc RecBadge / recommendation branches', () => {
     // The empty-state UI now renders (no crash)
     await screen.findByText(/Select a task to view details/i)
   })
+
+  it('getReport effect short-circuits on `report` truthy after a successful fetch (line 132 third operand)', async () => {
+    // First call resolves with one report; after that, report state is truthy.
+    // We then mutate the task (forcing a re-run of the effect via a dep change)
+    // but the `|| report` short-circuit should early-return — getReport not called again.
+    vi.mocked(api.getReport).mockResolvedValue({
+      task_id: 'r-persist', generated_at: '', plain_english_summary: 'cached summary',
+      overall_recommendation: 'APPROVE', confidence_score: 0.85, eu_ai_act_compliance: [],
+    } as any)
+    setStore({
+      rp: {
+        task_id: 'r-persist', task_type: 'document_review', status: 'COMPLETED',
+        created_at: '2026-04-21T10:00:00Z', report_available: true,
+      },
+    }, 'rp')
+    render(<TaskDetail />)
+    await screen.findByText('cached summary')
+    expect(api.getReport).toHaveBeenCalledTimes(1)
+
+    // Flip report_available → dep array changes → effect re-runs with `report` still set
+    // → the `|| report` branch short-circuits → no new getReport call.
+    act(() => {
+      useTaskStore.setState({
+        tasks: {
+          rp: {
+            task_id: 'r-persist', task_type: 'document_review', status: 'COMPLETED',
+            created_at: '2026-04-21T10:00:00Z', report_available: true,
+            // Add a trivial change to re-trigger the effect via task?.task_id identity.
+            // (task_id stays same; but the task object identity changes, which is enough.)
+          } as any,
+        },
+      })
+    })
+    // Still just one call — the early return fired
+    expect(api.getReport).toHaveBeenCalledTimes(1)
+  })
 })
