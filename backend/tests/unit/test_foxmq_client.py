@@ -99,9 +99,14 @@ def test_publish_event_live_connect_fail_falls_back(monkeypatch):
 
 def test_publish_event_live_exception_falls_back(monkeypatch):
     monkeypatch.setenv("USE_REAL_VERTEX", "true")
+    # Patch import inside _publish_real -- mqtt is imported lazily there
+    import paho.mqtt.client as real_mqtt
 
-    with patch("paho.mqtt.client.Client", side_effect=RuntimeError("boom")):
-        ok = foxmq_client.publish_event({"task_id": "x", "event_type": "y"})
+    def _boom(*a, **kw):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(real_mqtt, "Client", _boom)
+    ok = foxmq_client.publish_event({"task_id": "x", "event_type": "y"})
     assert ok is True  # never blocks pipeline
 
 
