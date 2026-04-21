@@ -1,4 +1,4 @@
-﻿fastapi==0.115.6
+fastapi==0.115.6
 uvicorn[standard]==0.32.1
 pydantic==2.10.4
 pydantic-settings==2.7.0
@@ -17,3 +17,4 @@ httpx==0.28.1
 ruff==0.8.4
 black==24.10.0
 mypy==1.13.0
+cryptography==44.0.0
