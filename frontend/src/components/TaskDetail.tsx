@@ -37,7 +37,11 @@ function Section({
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{title}</span>
           {badge && (
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeColour ?? 'bg-gray-100 text-gray-600'}`}>
+            // Every call-site currently passes a `badgeColour` when `badge` is truthy,
+            // so the nullish-coalescing fallback is not reachable. If a future call-site
+            // omits badgeColour while setting badge, Tailwind JIT will render an unstyled
+            // badge — callers must pass a colour.
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeColour}`}>
               {badge}
             </span>
           )}

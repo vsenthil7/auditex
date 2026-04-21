@@ -601,4 +601,27 @@ describe('TaskDetail — misc RecBadge / recommendation branches', () => {
     // ConfBar should render 0%
     expect(screen.getByText('0%')).toBeInTheDocument()
   })
+
+  it('getReport effect early-returns when selectedTaskId changes to a missing task (line 128)', async () => {
+    vi.mocked(api.getReport).mockResolvedValue({
+      task_id: 'have', generated_at: '', plain_english_summary: 'first report',
+      overall_recommendation: 'APPROVE', confidence_score: 0.9, eu_ai_act_compliance: [],
+    } as any)
+    setStore({
+      have: {
+        task_id: 'have', task_type: 'document_review', status: 'COMPLETED',
+        created_at: '2026-04-21T10:00:00Z', report_available: true,
+      },
+    }, 'have')
+    render(<TaskDetail />)
+    await screen.findByText('first report')
+
+    // Switch selection to an id that does NOT exist in tasks → task becomes null
+    // → useEffect fires with deps changing → `if (!task) return` at line 128 executes.
+    act(() => {
+      useTaskStore.setState({ selectedTaskId: 'missing-id' })
+    })
+    // The empty-state UI now renders (no crash)
+    await screen.findByText(/Select a task to view details/i)
+  })
 })
