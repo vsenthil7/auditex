@@ -1,4 +1,4 @@
-"""
+﻿"""
 Auditex -- application config.
 Reads all settings from environment variables (loaded from .env in development).
 Pydantic-settings validates types and raises on missing required values.
@@ -42,6 +42,15 @@ class Settings(BaseSettings):
     # Security
     JWT_SECRET: str = Field(default="dev_secret_change_in_production")
     API_KEY_SALT: str = Field(default="dev_salt_change_in_production")
+
+    # Export signing (Phase 11 Item 1)
+    # EXPORT_SIGNING_KEYS: comma-separated "id:hex_key" pairs. First entry is the
+    # ACTIVE signing key; all entries are valid for verify. If empty, legacy single-
+    # key pair (EXPORT_SIGNING_KEY_ID + EXPORT_SIGNING_KEY_HEX) is used.
+    EXPORT_SIGNING_KEYS: str = Field(default="")
+    EXPORT_SIGNING_KEY_ID: str = Field(default="auditex-dev-default")
+    # Dev-only default HMAC key (32 bytes hex). MUST be overridden in prod.
+    EXPORT_SIGNING_KEY_HEX: str = Field(default="00" * 32)
 
     # App
     ENVIRONMENT: str = Field(default="development")
