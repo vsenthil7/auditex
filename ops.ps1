@@ -442,12 +442,12 @@ function Do-Playwright {
 
 # == GIT PUSH FORCE UPSTREAM (overwrites remote main) ========================
 function Do-GitPushForceUpstream {
-    Banner "GIT PUSH --force-with-lease --set-upstream origin main"
+    Banner "GIT PUSH --force --set-upstream origin main"
     Log "1) git status" "Cyan"; Run "git status"
     Log "2) git log -5" "Cyan"; Run "git log --oneline -5"
     Log "3) git remote -v" "Cyan"; Run "git remote -v"
-    Log "4) git push --force-with-lease --set-upstream origin main" "Cyan"
-    $out = & git push --force-with-lease --set-upstream origin main 2>&1
+    Log "4) git push --force --set-upstream origin main" "Cyan"
+    $out = & git push --force --set-upstream origin main 2>&1
     $exit = $LASTEXITCODE
     foreach ($line in $out) { Log "  $line" }
     Log ""
