@@ -1,0 +1,127 @@
+"""Tests for core.consensus.foxmq_client — stub + live branch coverage.
+
+We don't need a real broker. We mock paho-mqtt and socket to drive both
+branches (success, fail-to-connect, publish error, socket-reachable).
+"""
+from __future__ import annotations
+
+import os
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from core.consensus import foxmq_client
+
+
+def test_use_real_vertex_false_by_default(monkeypatch):
+    monkeypatch.setenv("USE_REAL_VERTEX", "false")
+    assert foxmq_client._use_real_vertex() is False
+
+
+def test_use_real_vertex_true(monkeypatch):
+    monkeypatch.setenv("USE_REAL_VERTEX", "true")
+    assert foxmq_client._use_real_vertex() is True
+
+
+def test_broker_url_defaults(monkeypatch):
+    monkeypatch.setenv("FOXMQ_BROKER_URL", "mqtt://foxmq:1883")
+    host, port = foxmq_client._broker_url()
+    assert host == "foxmq"
+    assert port == 1883
+
+
+def test_broker_url_mqtts(monkeypatch):
+    monkeypatch.setenv("FOXMQ_BROKER_URL", "mqtts://broker:8883")
+    host, port = foxmq_client._broker_url()
+    assert host == "broker"
+    assert port == 8883
+
+
+def test_broker_url_no_port(monkeypatch):
+    monkeypatch.setenv("FOXMQ_BROKER_URL", "mqtt://foxmq")
+    host, port = foxmq_client._broker_url()
+    assert host == "foxmq"
+    assert port == 1883
+
+
+def test_publish_stub_returns_true():
+    ok = foxmq_client._publish_stub({"event_type": "task_completed", "task_id": "abc"})
+    assert ok is True
+
+
+def test_publish_event_stub_mode(monkeypatch):
+    monkeypatch.setenv("USE_REAL_VERTEX", "false")
+    assert foxmq_client.publish_event({"task_id": "x", "event_type": "y"}) is True
+
+
+def test_publish_event_live_mode_success(monkeypatch):
+    monkeypatch.setenv("USE_REAL_VERTEX", "true")
+    mock_client = MagicMock()
+
+    def fake_connect(host, port, keepalive):
+        # Immediately fire the on_connect callback with success
+        mock_client.on_connect(mock_client, None, None, 0, None)
+
+    mock_client.connect.side_effect = fake_connect
+    mock_client.loop_start = MagicMock()
+
+    def fake_publish(topic, payload, qos=0, **kw):
+        mock_client.on_publish(mock_client, None, 1, 0, None)
+        return MagicMock()
+
+    mock_client.publish.side_effect = fake_publish
+    mock_client.loop_stop = MagicMock()
+    mock_client.disconnect = MagicMock()
+
+    with patch("paho.mqtt.client.Client", return_value=mock_client):
+        # Also patch CallbackAPIVersion and MQTTv5 just in case
+        with patch("paho.mqtt.client.CallbackAPIVersion", MagicMock()):
+            ok = foxmq_client.publish_event(
+                {"task_id": "abc12345", "event_type": "task_completed"}
+            )
+    assert ok is True
+
+
+def test_publish_event_live_connect_fail_falls_back(monkeypatch):
+    monkeypatch.setenv("USE_REAL_VERTEX", "true")
+    mock_client = MagicMock()
+    # Never trigger on_connect success → connected stays False → fallback path
+    mock_client.connect = MagicMock()
+    mock_client.loop_start = MagicMock()
+    mock_client.loop_stop = MagicMock()
+    mock_client.disconnect = MagicMock()
+
+    with patch("paho.mqtt.client.Client", return_value=mock_client), \
+         patch("time.sleep"):
+        ok = foxmq_client.publish_event({"task_id": "x", "event_type": "y"})
+    assert ok is True  # fallback to stub always returns True
+
+
+def test_publish_event_live_exception_falls_back(monkeypatch):
+    monkeypatch.setenv("USE_REAL_VERTEX", "true")
+
+    with patch("paho.mqtt.client.Client", side_effect=RuntimeError("boom")):
+        ok = foxmq_client.publish_event({"task_id": "x", "event_type": "y"})
+    assert ok is True  # never blocks pipeline
+
+
+def test_is_live_stub_mode(monkeypatch):
+    monkeypatch.setenv("USE_REAL_VERTEX", "false")
+    assert foxmq_client.is_live() is False
+
+
+def test_is_live_real_mode_socket_success(monkeypatch):
+    monkeypatch.setenv("USE_REAL_VERTEX", "true")
+    fake_sock = MagicMock()
+    with patch("socket.create_connection", return_value=fake_sock):
+        assert foxmq_client.is_live() is True
+
+
+def test_is_live_real_mode_socket_fails(monkeypatch):
+    monkeypatch.setenv("USE_REAL_VERTEX", "true")
+    with patch("socket.create_connection", side_effect=OSError("refused")):
+        assert foxmq_client.is_live() is False
+
+
+def test_foxmq_publish_error_is_exception():
+    assert issubclass(foxmq_client.FoxMQPublishError, Exception)
