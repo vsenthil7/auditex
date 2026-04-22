@@ -93,3 +93,17 @@ export interface EuAiActExport {
   generated_at: string
   articles: EuAiActArticle[]
 }
+
+
+export interface SignedReportSignature {
+  algorithm: string
+  signing_key_id: string
+  signed_at: string
+  signature_hex: string
+}
+
+export interface SignedReportEnvelope {
+  payload: Record<string, unknown>
+  signature: SignedReportSignature
+  persisted?: boolean
+}

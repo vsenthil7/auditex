@@ -69,14 +69,13 @@ app.add_middleware(
 )
 
 # --- Register routers ---
-from app.api.v1 import health, tasks, agents, reports, dlq, events, webhooks  # noqa: E402
+from app.api.v1 import health, tasks, agents, reports, dlq, webhooks  # noqa: E402
 
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(agents.router, prefix="/api/v1")
 app.include_router(reports.router, prefix="/api/v1")
 app.include_router(dlq.router, prefix="/api/v1")
-app.include_router(events.router, prefix="/api/v1")
 app.include_router(webhooks.router, prefix="/api/v1")
 
 
