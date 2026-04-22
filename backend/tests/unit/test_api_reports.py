@@ -45,12 +45,6 @@ def _tidy_report(report):
     return report
 
 
-def _tidy_task(task):
-    """Ensure task.vertex_finalised_at is controllable."""
-    # conftest already sets vertex_finalised_at to a MagicMock with isoformat
-    return task
-
-
 # --------------------------------------------------------------------------- #
 # GET /reports/{task_id}
 # --------------------------------------------------------------------------- #
