@@ -1,4 +1,4 @@
-﻿"""
+"""
 Auditex -- application config.
 Reads all settings from environment variables (loaded from .env in development).
 Pydantic-settings validates types and raises on missing required values.
@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     EXPORT_SIGNING_KEY_ID: str = Field(default="auditex-dev-default")
     # Dev-only default HMAC key (32 bytes hex). MUST be overridden in prod.
     EXPORT_SIGNING_KEY_HEX: str = Field(default="00" * 32)
+
+    # Rate limiting (Phase 11 Item 4). Requests per minute per identity.
+    # Set to 0 to disable.
+    RATE_LIMIT_PER_MINUTE: int = Field(default=60)
 
     # App
     ENVIRONMENT: str = Field(default="development")
