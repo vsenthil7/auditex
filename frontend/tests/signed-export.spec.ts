@@ -113,7 +113,7 @@ test.describe('Signed Export -- Sign + Verify', () => {
 
     await detail.locator('[data-testid=\"download-signed-bundle\"]').click()
     const download = await downloadPromise
-    expect(download.suggestedFilename()).toMatch(new RegExp(`auditex-report-${TASK_ID}-signed\\\\.json`))
+    expect(download.suggestedFilename()).toMatch(new RegExp(`auditex-report-${TASK_ID}-signed\\.json`))
 
     // Verify button
     const verifyBtn = detail.locator('[data-testid=\"verify-proof-button\"]')
