@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTaskStore } from '../store/taskStore'
 import { StatusBadge } from './StatusBadge'
+import { SignReportButton } from './SignReportButton'
+import { VerifySignatureDialog } from './VerifySignatureDialog'
 import { getReport, exportReport } from '../services/api'
 import type { PoCReport, TaskStatus } from '../types'
 
@@ -427,6 +429,8 @@ export function TaskDetail() {
                 >
                   ⬇ Export EU AI Act JSON
                 </button>
+                <SignReportButton taskId={task.task_id} />
+                <VerifySignatureDialog taskId={task.task_id} />
               </div>
             )}
           </Section>

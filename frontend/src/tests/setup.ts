@@ -13,10 +13,8 @@ afterEach(() => {
 
 // Polyfill URL.createObjectURL for TaskDetail export test
 if (typeof URL.createObjectURL === 'undefined') {
-  // @ts-expect-error jsdom does not provide createObjectURL by default
   URL.createObjectURL = vi.fn(() => 'blob:mock-url')
 }
 if (typeof URL.revokeObjectURL === 'undefined') {
-  // @ts-expect-error jsdom does not provide revokeObjectURL by default
   URL.revokeObjectURL = vi.fn()
 }

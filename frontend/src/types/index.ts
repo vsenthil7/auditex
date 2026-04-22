@@ -107,3 +107,19 @@ export interface SignedReportEnvelope {
   signature: SignedReportSignature
   persisted?: boolean
 }
+
+
+export interface VerifyCheck {
+  name: string
+  ok: boolean
+}
+
+export interface VerifyResult {
+  task_id: string
+  verified: boolean
+  expected_hash: string
+  computed_hash: string
+  event_count: number
+  reason: string | null
+  checks: VerifyCheck[]
+}

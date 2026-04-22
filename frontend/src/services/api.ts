@@ -5,6 +5,7 @@ import type {
   PoCReport,
   EuAiActExport,
   SignedReportEnvelope,
+  VerifyResult,
 } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -50,7 +51,7 @@ export async function listTasks(page = 1, size = 50): Promise<TaskListResponse> 
   return request<TaskListResponse>(`/api/v1/tasks?page=${page}&page_size=${size}`)
 }
 
-// Transform backend eu_ai_act flat dict â†’ frontend eu_ai_act_compliance array
+// Transform backend eu_ai_act flat dict Ã¢â€ â€™ frontend eu_ai_act_compliance array
 function transformReport(raw: Record<string, unknown>): PoCReport {
   const eu = (raw.eu_ai_act ?? {}) as Record<string, Record<string, unknown>>
 
@@ -123,9 +124,9 @@ export async function getReport(taskId: string): Promise<PoCReport> {
 // Transform export: backend returns flat article keys at top level
 function transformExport(raw: Record<string, unknown>): EuAiActExport {
   const articleMap: Record<string, string> = {
-    article_9_risk_management:     'Article 9 â€” Risk Management',
-    article_13_transparency:       'Article 13 â€” Transparency',
-    article_17_quality_management: 'Article 17 â€” Quality Management',
+    article_9_risk_management:     'Article 9 Ã¢â‚¬â€ Risk Management',
+    article_13_transparency:       'Article 13 Ã¢â‚¬â€ Transparency',
+    article_17_quality_management: 'Article 17 Ã¢â‚¬â€ Quality Management',
   }
   const articles = Object.entries(articleMap)
     .filter(([key]) => raw[key])
@@ -158,4 +159,9 @@ export async function signReport(taskId: string): Promise<SignedReportEnvelope> 
   return request<SignedReportEnvelope>(`/api/v1/reports/${taskId}/sign`, {
     method: 'POST',
   })
+}
+
+
+export async function verifyProof(taskId: string): Promise<VerifyResult> {
+  return request<VerifyResult>(`/api/v1/events/${taskId}/verify`)
 }

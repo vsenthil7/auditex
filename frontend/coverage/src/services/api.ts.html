@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>153/153</span>
+                <span class='fraction'>167/167</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>55/55</span>
+                <span class='fraction'>57/57</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>8/8</span>
+                <span class='fraction'>10/10</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>153/153</span>
+                <span class='fraction'>167/167</span>
             </div>
         
             
@@ -216,7 +216,21 @@
 <a name='L151'></a><a href='#L151'>151</a>
 <a name='L152'></a><a href='#L152'>152</a>
 <a name='L153'></a><a href='#L153'>153</a>
-<a name='L154'></a><a href='#L154'>154</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -229,21 +243,23 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">19x</span>
-<span class="cline-any cline-yes">19x</span>
-<span class="cline-any cline-yes">19x</span>
-<span class="cline-any cline-yes">19x</span>
-<span class="cline-any cline-yes">19x</span>
-<span class="cline-any cline-yes">19x</span>
-<span class="cline-any cline-yes">19x</span>
-<span class="cline-any cline-yes">19x</span>
-<span class="cline-any cline-yes">19x</span>
-<span class="cline-any cline-yes">19x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">18x</span>
-<span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-yes">23x</span>
+<span class="cline-any cline-yes">23x</span>
+<span class="cline-any cline-yes">23x</span>
+<span class="cline-any cline-yes">23x</span>
+<span class="cline-any cline-yes">23x</span>
+<span class="cline-any cline-yes">23x</span>
+<span class="cline-any cline-yes">23x</span>
+<span class="cline-any cline-yes">23x</span>
+<span class="cline-any cline-yes">23x</span>
+<span class="cline-any cline-yes">23x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">20x</span>
+<span class="cline-any cline-yes">20x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
@@ -369,12 +385,26 @@
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import type {
   Task,
   TaskListResponse,
   SubmitTaskBody,
   PoCReport,
   EuAiActExport,
+  SignedReportEnvelope,
+  VerifyResult,
 } from '../types'
 &nbsp;
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -420,7 +450,7 @@ export async function listTasks(page = 1, size = 50): Promise&lt;TaskListRespons
   return request&lt;TaskListResponse&gt;(`/api/v1/tasks?page=${page}&amp;page_size=${size}`)
 }
 &nbsp;
-// Transform backend eu_ai_act flat dict → frontend eu_ai_act_compliance array
+// Transform backend eu_ai_act flat dict Ã¢â€ â€™ frontend eu_ai_act_compliance array
 function transformReport(raw: Record&lt;string, unknown&gt;): PoCReport {
   const eu = (raw.eu_ai_act ?? {}) as Record&lt;string, Record&lt;string, unknown&gt;&gt;
 &nbsp;
@@ -493,9 +523,9 @@ export async function getReport(taskId: string): Promise&lt;PoCReport&gt; {
 // Transform export: backend returns flat article keys at top level
 function transformExport(raw: Record&lt;string, unknown&gt;): EuAiActExport {
   const articleMap: Record&lt;string, string&gt; = {
-    article_9_risk_management:     'Article 9 — Risk Management',
-    article_13_transparency:       'Article 13 — Transparency',
-    article_17_quality_management: 'Article 17 — Quality Management',
+    article_9_risk_management:     'Article 9 Ã¢â‚¬â€ Risk Management',
+    article_13_transparency:       'Article 13 Ã¢â‚¬â€ Transparency',
+    article_17_quality_management: 'Article 17 Ã¢â‚¬â€ Quality Management',
   }
   const articles = Object.entries(articleMap)
     .filter(([key]) =&gt; raw[key])
@@ -522,6 +552,18 @@ export async function exportReport(taskId: string): Promise&lt;EuAiActExport&gt;
   )
   return transformExport(raw)
 }
+&nbsp;
+&nbsp;
+export async function signReport(taskId: string): Promise&lt;SignedReportEnvelope&gt; {
+  return request&lt;SignedReportEnvelope&gt;(`/api/v1/reports/${taskId}/sign`, {
+    method: 'POST',
+  })
+}
+&nbsp;
+&nbsp;
+export async function verifyProof(taskId: string): Promise&lt;VerifyResult&gt; {
+  return request&lt;VerifyResult&gt;(`/api/v1/events/${taskId}/verify`)
+}
 &nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
@@ -529,7 +571,7 @@ export async function exportReport(taskId: string): Promise&lt;EuAiActExport&gt;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-21T20:32:12.907Z
+                at 2026-04-22T06:23:05.835Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

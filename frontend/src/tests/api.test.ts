@@ -9,7 +9,7 @@ const BASE_URL = 'http://localhost:8000'
 // Helper — install a fetch mock returning the given response
 function installFetch(responses: Array<{ ok: boolean; status?: number; body: unknown; text?: string }>) {
   const queue = [...responses]
-  const fetchMock = vi.fn(async () => {
+  const fetchMock = vi.fn<[RequestInfo | URL, RequestInit?], Promise<Response>>(async () => {
     const next = queue.shift()!
     return {
       ok: next.ok,
@@ -23,7 +23,7 @@ function installFetch(responses: Array<{ ok: boolean; status?: number; body: unk
 }
 
 describe('api.submitTask', () => {
-  beforeEach(() => vi.unstubAllGlobals())
+  beforeEach(() => { vi.unstubAllGlobals() })
 
   it('POSTs with wrapped payload + API key header', async () => {
     const fetchMock = installFetch([{ ok: true, body: { task_id: 't1' } }])
@@ -63,7 +63,7 @@ describe('api.submitTask', () => {
 })
 
 describe('api.getTask', () => {
-  beforeEach(() => vi.unstubAllGlobals())
+  beforeEach(() => { vi.unstubAllGlobals() })
 
   it('GETs /api/v1/tasks/:id', async () => {
     const fetchMock = installFetch([
@@ -77,7 +77,7 @@ describe('api.getTask', () => {
 })
 
 describe('api.listTasks', () => {
-  beforeEach(() => vi.unstubAllGlobals())
+  beforeEach(() => { vi.unstubAllGlobals() })
 
   it('uses defaults page=1 size=50', async () => {
     const fetchMock = installFetch([
@@ -99,7 +99,7 @@ describe('api.listTasks', () => {
 })
 
 describe('api.getReport + transformReport', () => {
-  beforeEach(() => vi.unstubAllGlobals())
+  beforeEach(() => { vi.unstubAllGlobals() })
 
   it('maps eu_ai_act keys to articles with COMPLIANT/NON_COMPLIANT/PARTIAL status', async () => {
     installFetch([{
@@ -314,7 +314,7 @@ describe('api.getReport + transformReport', () => {
 })
 
 describe('api.exportReport + transformExport', () => {
-  beforeEach(() => vi.unstubAllGlobals())
+  beforeEach(() => { vi.unstubAllGlobals() })
 
   it('maps flat article keys to articles[]', async () => {
     const fetchMock = installFetch([{
@@ -373,5 +373,84 @@ describe('api.exportReport + transformExport', () => {
     const r = await exportReport('whatever')
     expect(r.task_id).toBe('')
     expect(r.articles).toEqual([])
+  })
+})
+
+
+describe('api.signReport', () => {
+  beforeEach(() => { vi.unstubAllGlobals() })
+
+  it('POSTs to /reports/{id}/sign and returns the envelope', async () => {
+    const envelope = {
+      payload: { foo: 'bar' },
+      signature: {
+        algorithm: 'HMAC-SHA256',
+        signing_key_id: 'kid-xyz',
+        signed_at: '2026-04-22T00:00:00Z',
+        signature_hex: 'ab'.repeat(32),
+      },
+      persisted: true,
+    }
+    const fetchMock = installFetch([{ ok: true, body: envelope }])
+    const { signReport } = await import('../services/api')
+
+    const out = await signReport('t-99')
+
+    expect(out).toEqual(envelope)
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BASE_URL}/api/v1/reports/t-99/sign`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'X-API-Key': expect.any(String),
+        }),
+      }),
+    )
+  })
+
+  it('throws on non-2xx', async () => {
+    installFetch([{ ok: false, status: 503, body: {}, text: 'no key' }])
+    const { signReport } = await import('../services/api')
+    await expect(signReport('t-99')).rejects.toThrow(/API 503/)
+  })
+})
+
+
+describe('api.verifyProof', () => {
+  beforeEach(() => { vi.unstubAllGlobals() })
+
+  it('GETs /events/{id}/verify and returns the result', async () => {
+    const result = {
+      task_id: 't-42',
+      verified: true,
+      expected_hash: 'hh',
+      computed_hash: 'hh',
+      event_count: 3,
+      reason: null,
+      checks: [
+        { name: 'has_expected_hash', ok: true },
+        { name: 'has_events', ok: true },
+        { name: 'chain_hash_matches', ok: true },
+      ],
+    }
+    const fetchMock = installFetch([{ ok: true, body: result }])
+    const { verifyProof } = await import('../services/api')
+
+    const out = await verifyProof('t-42')
+
+    expect(out).toEqual(result)
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BASE_URL}/api/v1/events/t-42/verify`,
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'X-API-Key': expect.any(String) }),
+      }),
+    )
+  })
+
+  it('propagates non-2xx as error', async () => {
+    installFetch([{ ok: false, status: 404, body: {}, text: 'not found' }])
+    const { verifyProof } = await import('../services/api')
+    await expect(verifyProof('nope')).rejects.toThrow(/API 404/)
   })
 })

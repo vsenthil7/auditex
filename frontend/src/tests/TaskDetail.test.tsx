@@ -12,7 +12,7 @@
  *   - Section open/close toggles
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TaskDetail } from '../components/TaskDetail'
 import { useTaskStore } from '../store/taskStore'
@@ -20,6 +20,8 @@ import { useTaskStore } from '../store/taskStore'
 vi.mock('../services/api', () => ({
   getReport: vi.fn(),
   exportReport: vi.fn(),
+  signReport: vi.fn(),
+  verifyProof: vi.fn(),
 }))
 
 import * as api from '../services/api'
