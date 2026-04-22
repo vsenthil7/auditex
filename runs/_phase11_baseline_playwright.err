@@ -1,0 +1,45 @@
+docker : time="2026-04-21T21:32:51+01:00" level=warning 
+msg="C:\\Users\\v_sen\\Documents\\Projects\\0001_Hack0014_Vertex_Swarm_Tashi\\auditex\\docker-compose.yml: the 
+attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+At C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\ops.ps1:54 char:12
++     $out = docker compose exec postgres psql -U auditex -d auditex -c ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (time="2026-04-2...tial confusion":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+docker : time="2026-04-21T21:32:52+01:00" level=warning 
+msg="C:\\Users\\v_sen\\Documents\\Projects\\0001_Hack0014_Vertex_Swarm_Tashi\\auditex\\docker-compose.yml: the 
+attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+At C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\ops.ps1:54 char:12
++     $out = docker compose exec postgres psql -U auditex -d auditex -c ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (time="2026-04-2...tial confusion":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+docker : time="2026-04-21T21:32:52+01:00" level=warning 
+msg="C:\\Users\\v_sen\\Documents\\Projects\\0001_Hack0014_Vertex_Swarm_Tashi\\auditex\\docker-compose.yml: the 
+attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+At C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\ops.ps1:54 char:12
++     $out = docker compose exec postgres psql -U auditex -d auditex -c ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (time="2026-04-2...tial confusion":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+docker : time="2026-04-21T21:37:32+01:00" level=warning 
+msg="C:\\Users\\v_sen\\Documents\\Projects\\0001_Hack0014_Vertex_Swarm_Tashi\\auditex\\docker-compose.yml: the 
+attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+At C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\ops.ps1:54 char:12
++     $out = docker compose exec postgres psql -U auditex -d auditex -c ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (time="2026-04-2...tial confusion":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+docker : time="2026-04-21T21:37:32+01:00" level=warning 
+msg="C:\\Users\\v_sen\\Documents\\Projects\\0001_Hack0014_Vertex_Swarm_Tashi\\auditex\\docker-compose.yml: the 
+attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+At C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\ops.ps1:54 char:12
++     $out = docker compose exec postgres psql -U auditex -d auditex -c ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (time="2026-04-2...tial confusion":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

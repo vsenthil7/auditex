@@ -1,0 +1,68 @@
+[21:32:03] 
+[21:32:03] ops.ps1  action=vitest  21/04/2026 21:32:03
+[21:32:03] Log: C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\runs\ops_vitest_20260421_213203.log
+[21:32:03] 
+[21:32:03] 
+[21:32:03] ============================================================
+[21:32:03]   VITEST -- frontend component tests
+[21:32:03] ============================================================
+[21:32:03] > cd C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\frontend
+[21:32:03] STEP 1: npm install (ensure vitest + testing-library installed)
+[21:32:03] > npm install
+
+up to date, audited 309 packages in 2s
+
+61 packages are looking for funding
+  run `npm fund` for details
+
+5 moderate severity vulnerabilities
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+[21:32:06] 
+[21:32:06] STEP 2: Run vitest with coverage
+[21:32:06] > npx vitest run --coverage
+[21:32:06] 
+
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.1[39m [90mC:/Users/v_sen/Documents/Projects/0001_Hack0014_Vertex_Swarm_Tashi/auditex/frontend[39m
+[2m      Coverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m src/tests/types.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m src/tests/taskStore.test.ts [2m ([22m[2m17 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+ [32m✓[39m src/tests/api.test.ts [2m ([22m[2m19 tests[22m[2m)[22m[90m 74[2mms[22m[39m
+ [32m✓[39m src/tests/StatusBadge.test.tsx [2m ([22m[2m9 tests[22m[2m)[22m[90m 108[2mms[22m[39m
+ [32m✓[39m src/tests/App.test.tsx [2m ([22m[2m1 test[22m[2m)[22m[90m 215[2mms[22m[39m
+ [32m✓[39m src/tests/TaskList.test.tsx [2m ([22m[2m6 tests[22m[2m)[22m[33m 358[2mms[22m[39m
+ [32m✓[39m src/tests/SubmitTaskForm.test.tsx [2m ([22m[2m6 tests[22m[2m)[22m[33m 1032[2mms[22m[39m
+ [32m✓[39m src/tests/TaskDetail.test.tsx [2m ([22m[2m33 tests[22m[2m)[22m[33m 1537[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m8 passed[39m[22m[90m (8)[39m
+[2m      Tests [22m [1m[32m93 passed[39m[22m[90m (93)[39m
+[2m   Start at [22m 21:32:07
+[2m   Duration [22m 4.96s[2m (transform 996ms, setup 5.64s, collect 1.73s, tests 3.36s, environment 13.01s, prepare 2.57s)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |     100 |      100 |     100 |     100 |                   
+ src               |     100 |      100 |     100 |     100 |                   
+  App.tsx          |     100 |      100 |     100 |     100 |                   
+ src/components    |     100 |      100 |     100 |     100 |                   
+  StatusBadge.tsx  |     100 |      100 |     100 |     100 |                   
+  ...tTaskForm.tsx |     100 |      100 |     100 |     100 |                   
+  TaskDetail.tsx   |     100 |      100 |     100 |     100 |                   
+  TaskList.tsx     |     100 |      100 |     100 |     100 |                   
+ src/services      |     100 |      100 |     100 |     100 |                   
+  api.ts           |     100 |      100 |     100 |     100 |                   
+ src/store         |     100 |      100 |     100 |     100 |                   
+  taskStore.ts     |     100 |      100 |     100 |     100 |                   
+ src/types         |     100 |      100 |     100 |     100 |                   
+  index.ts         |     100 |      100 |     100 |     100 |                   
+-------------------|---------|----------|---------|---------|-------------------
+[21:32:13] 
+[21:32:13] vitest exit code: 0
+[21:32:13] PASS: vitest suite green
+[21:32:13] DONE: vitest complete. Log: C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\runs\ops_vitest_20260421_213203.log

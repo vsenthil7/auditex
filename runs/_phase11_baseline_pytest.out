@@ -1,0 +1,410 @@
+[21:30:51] 
+[21:30:51] ops.ps1  action=pytest  21/04/2026 21:30:51
+[21:30:51] Log: C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\runs\ops_pytest_20260421_213051.log
+[21:30:51] 
+[21:30:51] 
+[21:30:51] ============================================================
+[21:30:51]   PYTEST -- backend test suite (inside api container)
+[21:30:51] ============================================================
+[21:30:51] STEP 1: Confirm api container running
+[21:30:51]   time="2026-04-21T21:30:51+01:00" level=warning msg="C:\\Users\\v_sen\\Documents\\Projects\\0001_Hack0014_Vertex_Swarm_Tashi\\auditex\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[21:30:51]   api
+[21:30:51]   celery-worker
+[21:30:51]   foxmq
+[21:30:51]   frontend
+[21:30:51]   postgres
+[21:30:51]   redis
+[21:30:51]   api container: running
+[21:30:51] 
+[21:30:51] STEP 2: Run pytest with coverage
+[21:30:51] > docker compose exec -T api pytest tests/ -v --tb=short --cov=. --cov-report=term-missing --cov-report=html:tests/coverage_html --cov-fail-under=100
+[21:30:51] 
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-8.3.4, pluggy-1.6.0 -- /usr/local/bin/python3.12
+cachedir: .pytest_cache
+rootdir: /app
+configfile: pytest.ini
+plugins: asyncio-0.24.0, cov-6.0.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO, default_loop_scope=None
+collecting ... collected 275 items
+
+tests/unit/test_agent_repo.py::test_create_agent_full PASSED             [  0%]
+tests/unit/test_agent_repo.py::test_create_agent_minimal PASSED          [  0%]
+tests/unit/test_agent_repo.py::test_get_agent_found PASSED               [  1%]
+tests/unit/test_agent_repo.py::test_get_agent_not_found PASSED           [  1%]
+tests/unit/test_agent_repo.py::test_get_agent_by_name_found PASSED       [  1%]
+tests/unit/test_agent_repo.py::test_get_agent_by_name_not_found PASSED   [  2%]
+tests/unit/test_agent_repo.py::test_list_agents_active_only PASSED       [  2%]
+tests/unit/test_agent_repo.py::test_list_agents_include_inactive PASSED  [  2%]
+tests/unit/test_api_agents.py::test_orm_to_response_full PASSED          [  3%]
+tests/unit/test_api_agents.py::test_orm_to_response_bad_capabilities_json PASSED [  3%]
+tests/unit/test_api_agents.py::test_orm_to_response_no_capabilities PASSED [  4%]
+tests/unit/test_api_agents.py::test_create_agent PASSED                  [  4%]
+tests/unit/test_api_agents.py::test_list_agents PASSED                   [  4%]
+tests/unit/test_api_agents.py::test_get_agent_found PASSED               [  5%]
+tests/unit/test_api_agents.py::test_get_agent_not_found PASSED           [  5%]
+tests/unit/test_api_health.py::test_health_basic PASSED                  [  5%]
+tests/unit/test_api_health.py::test_health_deep_all_green PASSED         [  6%]
+tests/unit/test_api_health.py::test_health_deep_all_red PASSED           [  6%]
+tests/unit/test_api_reports.py::test_get_report_happy_path PASSED        [  6%]
+tests/unit/test_api_reports.py::test_get_report_task_not_found PASSED    [  7%]
+tests/unit/test_api_reports.py::test_get_report_task_not_completed PASSED [  7%]
+tests/unit/test_api_reports.py::test_get_report_missing_report PASSED    [  8%]
+tests/unit/test_api_reports.py::test_get_report_bad_eu_ai_act_json PASSED [  8%]
+tests/unit/test_api_reports.py::test_get_report_no_generated_at PASSED   [  8%]
+tests/unit/test_api_reports.py::test_export_report_happy_path PASSED     [  9%]
+tests/unit/test_api_reports.py::test_export_report_unsupported_format PASSED [  9%]
+tests/unit/test_api_reports.py::test_export_report_task_not_found PASSED [  9%]
+tests/unit/test_api_reports.py::test_export_report_task_not_completed PASSED [ 10%]
+tests/unit/test_api_reports.py::test_export_report_missing_report PASSED [ 10%]
+tests/unit/test_api_reports.py::test_export_report_bad_json PASSED       [ 10%]
+tests/unit/test_api_tasks.py::test_vertex_mode_stub PASSED               [ 11%]
+tests/unit/test_api_tasks.py::test_vertex_mode_live PASSED               [ 11%]
+tests/unit/test_api_tasks.py::test_orm_to_response_full PASSED           [ 12%]
+tests/unit/test_api_tasks.py::test_orm_to_response_bad_json PASSED       [ 12%]
+tests/unit/test_api_tasks.py::test_orm_to_response_nulls PASSED          [ 12%]
+tests/unit/test_api_tasks.py::test_submit_task_creates_and_dispatches PASSED [ 13%]
+tests/unit/test_api_tasks.py::test_submit_task_no_metadata PASSED        [ 13%]
+tests/unit/test_api_tasks.py::test_get_task_found PASSED                 [ 13%]
+tests/unit/test_api_tasks.py::test_get_task_404 PASSED                   [ 14%]
+tests/unit/test_api_tasks.py::test_get_task_bad_json_fields PASSED       [ 14%]
+tests/unit/test_api_tasks.py::test_get_task_with_vertex PASSED           [ 14%]
+tests/unit/test_api_tasks.py::test_list_tasks PASSED                     [ 15%]
+tests/unit/test_api_tasks.py::test_list_tasks_with_filter PASSED         [ 15%]
+tests/unit/test_app_main.py::test_app_importable PASSED                  [ 16%]
+tests/unit/test_app_main.py::test_app_has_routers_registered PASSED      [ 16%]
+tests/unit/test_app_main.py::test_root_endpoint_returns_message PASSED   [ 16%]
+tests/unit/test_app_main.py::test_lifespan_happy_path PASSED             [ 17%]
+tests/unit/test_app_main.py::test_lifespan_migration_failure PASSED      [ 17%]
+tests/unit/test_app_main.py::test_lifespan_migration_exception PASSED    [ 17%]
+tests/unit/test_auth_middleware.py::test_get_redis_creates_client_once PASSED [ 18%]
+tests/unit/test_auth_middleware.py::test_require_api_key_missing_raises_401 PASSED [ 18%]
+tests/unit/test_auth_middleware.py::test_require_api_key_valid PASSED    [ 18%]
+tests/unit/test_auth_middleware.py::test_require_api_key_invalid_raises_401 PASSED [ 19%]
+tests/unit/test_auth_middleware.py::test_require_api_key_redis_error_raises_503 PASSED [ 19%]
+tests/unit/test_auth_middleware.py::test_require_api_key_corrupt_json_raises_500 PASSED [ 20%]
+tests/unit/test_celery_app.py::test_celery_app_importable PASSED         [ 20%]
+tests/unit/test_celery_app.py::test_celery_app_name PASSED               [ 20%]
+tests/unit/test_celery_app.py::test_celery_app_queues_present PASSED     [ 21%]
+tests/unit/test_celery_app.py::test_celery_app_defaults PASSED           [ 21%]
+tests/unit/test_claude_executor.py::test_get_system_prompt_known_types PASSED [ 21%]
+tests/unit/test_claude_executor.py::test_get_system_prompt_unknown_defaults_to_document_review PASSED [ 22%]
+tests/unit/test_claude_executor.py::test_build_user_message PASSED       [ 22%]
+tests/unit/test_claude_executor.py::test_extract_json_plain PASSED       [ 22%]
+tests/unit/test_claude_executor.py::test_extract_json_with_fences PASSED [ 23%]
+tests/unit/test_claude_executor.py::test_extract_json_with_only_opening_fence PASSED [ 23%]
+tests/unit/test_claude_executor.py::test_extract_json_invalid_raises PASSED [ 24%]
+tests/unit/test_claude_executor.py::test_execute_task_success PASSED     [ 24%]
+tests/unit/test_claude_executor.py::test_execute_task_bad_json_raises PASSED [ 24%]
+tests/unit/test_claude_executor.py::test_execute_task_schema_validation_fails PASSED [ 25%]
+tests/unit/test_claude_executor.py::test_execute_task_empty_content PASSED [ 25%]
+tests/unit/test_claude_service.py::test_call_claude_success_first_attempt PASSED [ 25%]
+tests/unit/test_claude_service.py::test_call_claude_rate_limit_then_success PASSED [ 26%]
+tests/unit/test_claude_service.py::test_call_claude_timeout_then_success PASSED [ 26%]
+tests/unit/test_claude_service.py::test_call_claude_server_error_then_success PASSED [ 26%]
+tests/unit/test_claude_service.py::test_call_claude_4xx_client_error_raises_immediately PASSED [ 27%]
+tests/unit/test_claude_service.py::test_call_claude_unexpected_exception_raises PASSED [ 27%]
+tests/unit/test_claude_service.py::test_call_claude_all_retries_exhausted PASSED [ 28%]
+tests/unit/test_claude_service.py::test_claude_service_error_is_exception PASSED [ 28%]
+tests/unit/test_config.py::test_settings_defaults_load PASSED            [ 28%]
+tests/unit/test_config.py::test_settings_env_override PASSED             [ 29%]
+tests/unit/test_conftest_fixtures.py::test_sample_executor_output_fixture PASSED [ 29%]
+tests/unit/test_conftest_fixtures.py::test_sample_risk_output_fixture PASSED [ 29%]
+tests/unit/test_conftest_fixtures.py::test_sample_contract_output_fixture PASSED [ 30%]
+tests/unit/test_consensus_eval.py::test_evaluate_3_of_3_approve PASSED   [ 30%]
+tests/unit/test_consensus_eval.py::test_evaluate_2_of_3_approve PASSED   [ 30%]
+tests/unit/test_consensus_eval.py::test_evaluate_1_of_3_approve PASSED   [ 31%]
+tests/unit/test_consensus_eval.py::test_evaluate_0_of_3_approve PASSED   [ 31%]
+tests/unit/test_consensus_eval.py::test_evaluate_empty_raises PASSED     [ 32%]
+tests/unit/test_consensus_eval.py::test_evaluate_invalid_verdict_raises PASSED [ 32%]
+tests/unit/test_consensus_eval.py::test_evaluate_normalises_case_and_whitespace PASSED [ 32%]
+tests/unit/test_consensus_eval.py::test_evaluate_non_standard_count PASSED [ 33%]
+tests/unit/test_consensus_eval.py::test_is_consensus_passed_true PASSED  [ 33%]
+tests/unit/test_consensus_eval.py::test_is_consensus_passed_false PASSED [ 33%]
+tests/unit/test_coordinator.py::test_strip_code_fences_plain PASSED      [ 34%]
+tests/unit/test_coordinator.py::test_strip_code_fences_json_fence PASSED [ 34%]
+tests/unit/test_coordinator.py::test_strip_code_fences_plain_fence PASSED [ 34%]
+tests/unit/test_coordinator.py::test_strip_code_fences_unclosed PASSED   [ 35%]
+tests/unit/test_coordinator.py::test_parse_reviewer_json_valid PASSED    [ 35%]
+tests/unit/test_coordinator.py::test_parse_reviewer_json_with_fence PASSED [ 36%]
+tests/unit/test_coordinator.py::test_parse_reviewer_json_invalid_raises PASSED [ 36%]
+tests/unit/test_coordinator.py::test_call_claude_reviewer_success PASSED [ 36%]
+tests/unit/test_coordinator.py::test_call_claude_reviewer_bad_verdict_raises PASSED [ 37%]
+tests/unit/test_coordinator.py::test_call_claude_reviewer_empty_content PASSED [ 37%]
+tests/unit/test_coordinator.py::test_run_review_pipeline_all_approve PASSED [ 37%]
+tests/unit/test_coordinator.py::test_run_review_pipeline_mixed_consensus PASSED [ 38%]
+tests/unit/test_coordinator.py::test_run_review_pipeline_commitment_violation PASSED [ 38%]
+tests/unit/test_db_connection.py::test_engine_exists PASSED              [ 38%]
+tests/unit/test_db_connection.py::test_async_session_local_exists PASSED [ 39%]
+tests/unit/test_db_connection.py::test_get_db_session_is_async_generator PASSED [ 39%]
+tests/unit/test_db_connection.py::test_get_db_session_happy_path PASSED  [ 40%]
+tests/unit/test_db_connection.py::test_get_db_session_rolls_back_on_exception PASSED [ 40%]
+tests/unit/test_db_models.py::test_utcnow_returns_utc_aware_datetime PASSED [ 40%]
+tests/unit/test_db_models.py::test_base_is_declarative PASSED            [ 41%]
+tests/unit/test_db_models.py::test_timestamp_mixin_defined PASSED        [ 41%]
+tests/unit/test_db_models.py::test_uuid_primary_key_mixin_defined PASSED [ 41%]
+tests/unit/test_db_models.py::test_task_repr PASSED                      [ 42%]
+tests/unit/test_db_models.py::test_agent_repr PASSED                     [ 42%]
+tests/unit/test_db_models.py::test_audit_event_repr PASSED               [ 42%]
+tests/unit/test_db_models.py::test_report_repr_unsigned PASSED           [ 43%]
+tests/unit/test_db_models.py::test_report_repr_signed PASSED             [ 43%]
+tests/unit/test_eu_act_formatter.py::test_confidence_to_risk_unknown PASSED [ 44%]
+tests/unit/test_eu_act_formatter.py::test_confidence_to_risk_high PASSED [ 44%]
+tests/unit/test_eu_act_formatter.py::test_confidence_to_risk_medium PASSED [ 44%]
+tests/unit/test_eu_act_formatter.py::test_confidence_to_risk_low PASSED  [ 45%]
+tests/unit/test_eu_act_formatter.py::test_format_eu_ai_act_happy_path PASSED [ 45%]
+tests/unit/test_eu_act_formatter.py::test_format_eu_ai_act_confidence_string_bad PASSED [ 45%]
+tests/unit/test_eu_act_formatter.py::test_format_eu_ai_act_output_is_string PASSED [ 46%]
+tests/unit/test_eu_act_formatter.py::test_format_eu_ai_act_output_is_unparseable_string PASSED [ 46%]
+tests/unit/test_eu_act_formatter.py::test_format_eu_ai_act_falls_back_to_summary PASSED [ 46%]
+tests/unit/test_eu_act_formatter.py::test_format_eu_ai_act_falls_back_to_joined_strings PASSED [ 47%]
+tests/unit/test_eu_act_formatter.py::test_format_eu_ai_act_reviewers_with_missing_fields PASSED [ 47%]
+tests/unit/test_eu_act_formatter.py::test_thresholds_are_sane PASSED     [ 48%]
+tests/unit/test_event_builder.py::test_sha256_of_json_deterministic PASSED [ 48%]
+tests/unit/test_event_builder.py::test_build_task_completed_event_full PASSED [ 48%]
+tests/unit/test_event_builder.py::test_build_task_completed_event_confidence_invalid PASSED [ 49%]
+tests/unit/test_event_builder.py::test_build_task_completed_event_missing_executor_confidence PASSED [ 49%]
+tests/unit/test_event_builder.py::test_build_task_completed_event_reviewers_missing PASSED [ 49%]
+tests/unit/test_event_repo.py::test_insert_event_minimal PASSED          [ 50%]
+tests/unit/test_event_repo.py::test_insert_event_full_payload PASSED     [ 50%]
+tests/unit/test_event_repo.py::test_get_events_for_task_empty PASSED     [ 50%]
+tests/unit/test_event_repo.py::test_get_events_for_task_with_results PASSED [ 51%]
+tests/unit/test_event_repo.py::test_event_repo_has_no_delete_method PASSED [ 51%]
+tests/unit/test_event_repo.py::test_event_repo_has_no_update_method PASSED [ 52%]
+tests/unit/test_execution_worker.py::test_execute_task_async_task_not_found PASSED [ 52%]
+tests/unit/test_execution_worker.py::test_execute_task_async_already_completed PASSED [ 52%]
+tests/unit/test_execution_worker.py::test_execute_task_async_bad_payload_routes_to_dlq PASSED [ 53%]
+tests/unit/test_execution_worker.py::test_execute_task_async_happy_path_stub_mode PASSED [ 53%]
+tests/unit/test_execution_worker.py::test_execute_task_async_claude_value_error_retries PASSED [ 53%]
+tests/unit/test_execution_worker.py::test_execute_task_async_claude_fails_max_retries PASSED [ 54%]
+tests/unit/test_execution_worker.py::test_execute_task_async_unexpected_exception_dlq PASSED [ 54%]
+tests/unit/test_execution_worker.py::test_execute_task_async_security_violation PASSED [ 54%]
+tests/unit/test_execution_worker.py::test_execute_task_async_review_pipeline_exception PASSED [ 55%]
+tests/unit/test_execution_worker.py::test_execute_task_async_consensus_error_continues PASSED [ 55%]
+tests/unit/test_execution_worker.py::test_execute_task_async_reporting_dispatch_fails PASSED [ 56%]
+tests/unit/test_execution_worker.py::test_make_engine_and_session_returns_tuple PASSED [ 56%]
+tests/unit/test_execution_worker.py::test_execute_task_is_celery_task PASSED [ 56%]
+tests/unit/test_execution_worker.py::test_execute_task_sync_wrapper_success PASSED [ 57%]
+tests/unit/test_execution_worker.py::test_execute_task_sync_wrapper_dispose_error_swallowed PASSED [ 57%]
+tests/unit/test_foxmq_client.py::test_use_real_vertex_false_by_default PASSED [ 57%]
+tests/unit/test_foxmq_client.py::test_use_real_vertex_true PASSED        [ 58%]
+tests/unit/test_foxmq_client.py::test_broker_url_defaults PASSED         [ 58%]
+tests/unit/test_foxmq_client.py::test_broker_url_mqtts PASSED            [ 58%]
+tests/unit/test_foxmq_client.py::test_broker_url_no_port PASSED          [ 59%]
+tests/unit/test_foxmq_client.py::test_publish_stub_returns_true PASSED   [ 59%]
+tests/unit/test_foxmq_client.py::test_publish_event_stub_mode PASSED     [ 60%]
+tests/unit/test_foxmq_client.py::test_publish_event_live_mode_success PASSED [ 60%]
+tests/unit/test_foxmq_client.py::test_publish_event_live_connect_fail_falls_back PASSED [ 60%]
+tests/unit/test_foxmq_client.py::test_publish_event_live_exception_falls_back PASSED [ 61%]
+tests/unit/test_foxmq_client.py::test_publish_event_live_cleanup_exception_swallowed PASSED [ 61%]
+tests/unit/test_foxmq_client.py::test_publish_event_live_connect_nonzero_reason_code PASSED [ 61%]
+tests/unit/test_foxmq_client.py::test_publish_event_live_publish_ack_timeout PASSED [ 62%]
+tests/unit/test_foxmq_client.py::test_is_live_stub_mode PASSED           [ 62%]
+tests/unit/test_foxmq_client.py::test_is_live_real_mode_socket_success PASSED [ 62%]
+tests/unit/test_foxmq_client.py::test_is_live_real_mode_socket_fails PASSED [ 63%]
+tests/unit/test_foxmq_client.py::test_foxmq_publish_error_is_exception PASSED [ 63%]
+tests/unit/test_gpt4o_reviewer.py::test_review_output_success_approve PASSED [ 64%]
+tests/unit/test_gpt4o_reviewer.py::test_review_output_reject_lowercase_normalised PASSED [ 64%]
+tests/unit/test_gpt4o_reviewer.py::test_review_output_invalid_json_raises PASSED [ 64%]
+tests/unit/test_gpt4o_reviewer.py::test_review_output_invalid_verdict_raises PASSED [ 65%]
+tests/unit/test_gpt4o_reviewer.py::test_review_output_confidence_out_of_range_raises PASSED [ 65%]
+tests/unit/test_gpt4o_reviewer.py::test_review_output_empty_choices PASSED [ 65%]
+tests/unit/test_gpt4o_reviewer.py::test_review_output_empty_reasoning_raises PASSED [ 66%]
+tests/unit/test_hash_commitment.py::test_generate_nonce_returns_64_char_hex PASSED [ 66%]
+tests/unit/test_hash_commitment.py::test_generate_nonce_unique PASSED    [ 66%]
+tests/unit/test_hash_commitment.py::test_compute_commitment_is_deterministic PASSED [ 67%]
+tests/unit/test_hash_commitment.py::test_compute_commitment_changes_with_verdict PASSED [ 67%]
+tests/unit/test_hash_commitment.py::test_compute_commitment_changes_with_nonce PASSED [ 68%]
+tests/unit/test_hash_commitment.py::test_verify_commitment_valid PASSED  [ 68%]
+tests/unit/test_hash_commitment.py::test_verify_commitment_invalid_raises PASSED [ 68%]
+tests/unit/test_hash_commitment.py::test_verify_commitment_wrong_nonce_raises PASSED [ 69%]
+tests/unit/test_hash_commitment.py::test_verify_commitment_wrong_hash_raises PASSED [ 69%]
+tests/unit/test_models_agent.py::test_agent_create_valid PASSED          [ 69%]
+tests/unit/test_models_agent.py::test_agent_create_full PASSED           [ 70%]
+tests/unit/test_models_agent.py::test_agent_create_empty_name PASSED     [ 70%]
+tests/unit/test_models_agent.py::test_agent_create_name_too_long PASSED  [ 70%]
+tests/unit/test_models_agent.py::test_agent_response_shape PASSED        [ 71%]
+tests/unit/test_models_agent.py::test_agent_list_response_shape PASSED   [ 71%]
+tests/unit/test_models_task.py::test_task_status_values PASSED           [ 72%]
+tests/unit/test_models_task.py::test_task_create_valid PASSED            [ 72%]
+tests/unit/test_models_task.py::test_task_create_with_metadata PASSED    [ 72%]
+tests/unit/test_models_task.py::test_task_create_task_type_empty_raises PASSED [ 73%]
+tests/unit/test_models_task.py::test_task_create_task_type_too_long PASSED [ 73%]
+tests/unit/test_models_task.py::test_task_response_minimal PASSED        [ 73%]
+tests/unit/test_models_task.py::test_task_response_full PASSED           [ 74%]
+tests/unit/test_models_task.py::test_task_list_response_shape PASSED     [ 74%]
+tests/unit/test_openai_service.py::test_call_openai_success PASSED       [ 74%]
+tests/unit/test_openai_service.py::test_call_openai_timeout_then_success PASSED [ 75%]
+tests/unit/test_openai_service.py::test_call_openai_rate_limit_then_success PASSED [ 75%]
+tests/unit/test_openai_service.py::test_call_openai_sdk_timeout_then_success PASSED [ 76%]
+tests/unit/test_openai_service.py::test_call_openai_server_error_then_success PASSED [ 76%]
+tests/unit/test_openai_service.py::test_call_openai_4xx_client_error_raises PASSED [ 76%]
+tests/unit/test_openai_service.py::test_call_openai_unexpected_error_raises PASSED [ 77%]
+tests/unit/test_openai_service.py::test_call_openai_all_retries_exhausted PASSED [ 77%]
+tests/unit/test_openai_service.py::test_openai_service_error_is_exception PASSED [ 77%]
+tests/unit/test_poc_generator.py::test_fallback_narrative_has_expected_elements PASSED [ 78%]
+tests/unit/test_poc_generator.py::test_fallback_narrative_missing_fields PASSED [ 78%]
+tests/unit/test_poc_generator.py::test_generate_report_claude_success PASSED [ 78%]
+tests/unit/test_poc_generator.py::test_generate_report_claude_fails_uses_fallback PASSED [ 79%]
+tests/unit/test_report_repo.py::test_create_report PASSED                [ 79%]
+tests/unit/test_report_repo.py::test_create_report_default_schema_version PASSED [ 80%]
+tests/unit/test_report_repo.py::test_get_report_by_task_id_found PASSED  [ 80%]
+tests/unit/test_report_repo.py::test_get_report_by_task_id_not_found PASSED [ 80%]
+tests/unit/test_reporting_worker.py::test_make_engine_and_session_returns_tuple PASSED [ 81%]
+tests/unit/test_reporting_worker.py::test_generate_poc_report_is_celery_task PASSED [ 81%]
+tests/unit/test_reporting_worker.py::test_generate_poc_report_sync_wrapper_success PASSED [ 81%]
+tests/unit/test_reporting_worker.py::test_generate_poc_report_sync_wrapper_dispose_error_swallowed PASSED [ 82%]
+tests/unit/test_reporting_worker.py::test_generate_report_async_task_not_found PASSED [ 82%]
+tests/unit/test_reporting_worker.py::test_generate_report_async_not_completed PASSED [ 82%]
+tests/unit/test_reporting_worker.py::test_generate_report_async_already_exists PASSED [ 83%]
+tests/unit/test_reporting_worker.py::test_generate_report_async_happy_path PASSED [ 83%]
+tests/unit/test_reporting_worker.py::test_generate_report_async_narrative_failure_triggers_retry PASSED [ 84%]
+tests/unit/test_reporting_worker.py::test_generate_report_async_bad_executor_json PASSED [ 84%]
+tests/unit/test_reporting_worker.py::test_generate_report_async_no_vertex_finalised_at PASSED [ 84%]
+tests/unit/test_retry_handler.py::test_exponential_backoff_attempt_1 PASSED [ 85%]
+tests/unit/test_retry_handler.py::test_exponential_backoff_attempt_2 PASSED [ 85%]
+tests/unit/test_retry_handler.py::test_exponential_backoff_clamps_to_last_entry PASSED [ 85%]
+tests/unit/test_retry_handler.py::test_route_to_dlq_calls_repos PASSED   [ 86%]
+tests/unit/test_retry_handler.py::test_route_to_dlq_truncates_long_reason PASSED [ 86%]
+tests/unit/test_task_repo.py::test_create_task PASSED                    [ 86%]
+tests/unit/test_task_repo.py::test_get_task_found PASSED                 [ 87%]
+tests/unit/test_task_repo.py::test_get_task_not_found PASSED             [ 87%]
+tests/unit/test_task_repo.py::test_list_tasks_no_filter PASSED           [ 88%]
+tests/unit/test_task_repo.py::test_list_tasks_with_status_filter PASSED  [ 88%]
+tests/unit/test_task_repo.py::test_update_task_status_full_fields PASSED [ 88%]
+tests/unit/test_task_repo.py::test_update_task_status_minimal PASSED     [ 89%]
+tests/unit/test_task_repo.py::test_update_task_status_not_found PASSED   [ 89%]
+tests/unit/test_task_schemas.py::test_document_review_valid PASSED       [ 89%]
+tests/unit/test_task_schemas.py::test_document_review_invalid_recommendation PASSED [ 90%]
+tests/unit/test_task_schemas.py::test_document_review_confidence_out_of_range PASSED [ 90%]
+tests/unit/test_task_schemas.py::test_document_review_completeness_out_of_range PASSED [ 90%]
+tests/unit/test_task_schemas.py::test_document_review_reasoning_empty PASSED [ 91%]
+tests/unit/test_task_schemas.py::test_risk_analysis_valid PASSED         [ 91%]
+tests/unit/test_task_schemas.py::test_risk_analysis_invalid_risk_level PASSED [ 92%]
+tests/unit/test_task_schemas.py::test_contract_check_valid PASSED        [ 92%]
+tests/unit/test_task_schemas.py::test_contract_check_invalid_compliance PASSED [ 92%]
+tests/unit/test_task_schemas.py::test_generic_task_output_valid PASSED   [ 93%]
+tests/unit/test_task_schemas.py::test_generic_task_output_empty_result PASSED [ 93%]
+tests/unit/test_task_schemas.py::test_get_schema_for_task_type_known PASSED [ 93%]
+tests/unit/test_task_schemas.py::test_get_schema_for_task_type_unknown PASSED [ 94%]
+tests/unit/test_task_schemas.py::test_task_output_schemas_registry PASSED [ 94%]
+tests/unit/test_vertex_client.py::test_sha256_deterministic PASSED       [ 94%]
+tests/unit/test_vertex_client.py::test_sha256_changes_with_content PASSED [ 95%]
+tests/unit/test_vertex_client.py::test_broker_host_port_defaults PASSED  [ 95%]
+tests/unit/test_vertex_client.py::test_use_real_vertex_false PASSED      [ 96%]
+tests/unit/test_vertex_client.py::test_use_real_vertex_true PASSED       [ 96%]
+tests/unit/test_vertex_client.py::test_increment_round_counter_redis_success PASSED [ 96%]
+tests/unit/test_vertex_client.py::test_increment_round_counter_redis_fail_falls_back PASSED [ 97%]
+tests/unit/test_vertex_client.py::test_submit_stub_returns_receipt PASSED [ 97%]
+tests/unit/test_vertex_client.py::test_submit_live_success_no_timestamp PASSED [ 97%]
+tests/unit/test_vertex_client.py::test_submit_live_publish_ack_timeout_exercises_sleep PASSED [ 98%]
+tests/unit/test_vertex_client.py::test_submit_live_success PASSED        [ 98%]
+tests/unit/test_vertex_client.py::test_submit_live_connect_fail_falls_back_to_stub PASSED [ 98%]
+tests/unit/test_vertex_client.py::test_submit_live_exception_falls_back PASSED [ 99%]
+tests/unit/test_vertex_client.py::test_vertex_submit_error_is_exception PASSED [ 99%]
+tests/unit/test_vertex_client.py::test_vertex_receipt_dataclass PASSED   [100%]
+
+---------- coverage: platform linux, python 3.12.13-final-0 ----------
+Name                                   Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------
+app/__init__.py                            0      0   100%
+app/api/__init__.py                        0      0   100%
+app/api/middleware/__init__.py             0      0   100%
+app/api/middleware/auth.py                30      0   100%
+app/api/v1/__init__.py                     0      0   100%
+app/api/v1/agents.py                      34      0   100%
+app/api/v1/health.py                      50      0   100%
+app/api/v1/reports.py                     52      0   100%
+app/api/v1/tasks.py                       72      0   100%
+app/config.py                             22      0   100%
+app/main.py                               31      0   100%
+app/models/__init__.py                     0      0   100%
+app/models/agent.py                       24      0   100%
+app/models/task.py                        34      0   100%
+core/__init__.py                           0      0   100%
+core/consensus/__init__.py                 0      0   100%
+core/consensus/event_builder.py           26      0   100%
+core/consensus/foxmq_client.py            89      0   100%
+core/consensus/vertex_client.py          101      0   100%
+core/execution/__init__.py                 0      0   100%
+core/execution/claude_executor.py         55      0   100%
+core/execution/retry_handler.py           19      0   100%
+core/execution/task_schemas.py            28      0   100%
+core/ingestion/__init__.py                 0      0   100%
+core/reporting/__init__.py                 0      0   100%
+core/reporting/eu_act_formatter.py        39      0   100%
+core/reporting/poc_generator.py           31      0   100%
+core/review/__init__.py                    0      0   100%
+core/review/consensus_eval.py             25      0   100%
+core/review/coordinator.py               112      0   100%
+core/review/gpt4o_reviewer.py             42      0   100%
+core/review/hash_commitment.py            20      0   100%
+db/__init__.py                             0      0   100%
+db/connection.py                          14      0   100%
+db/models/__init__.py                      6      0   100%
+db/models/agent.py                        19      0   100%
+db/models/audit_event.py                  22      0   100%
+db/models/base.py                         13      0   100%
+db/models/report.py                       23      0   100%
+db/models/task.py                         40      0   100%
+db/repositories/__init__.py                0      0   100%
+db/repositories/agent_repo.py             31      0   100%
+db/repositories/event_repo.py             15      0   100%
+db/repositories/report_repo.py            15      0   100%
+db/repositories/task_repo.py              71      0   100%
+services/__init__.py                       0      0   100%
+services/claude_service.py                46      0   100%
+services/openai_service.py                54      0   100%
+tests/__init__.py                          0      0   100%
+tests/conftest.py                        101      0   100%
+tests/e2e/__init__.py                      0      0   100%
+tests/integration/__init__.py              0      0   100%
+tests/unit/__init__.py                     0      0   100%
+tests/unit/test_agent_repo.py             49      0   100%
+tests/unit/test_api_agents.py             64      0   100%
+tests/unit/test_api_health.py             53      0   100%
+tests/unit/test_api_reports.py            97      0   100%
+tests/unit/test_api_tasks.py             128      0   100%
+tests/unit/test_app_main.py               40      0   100%
+tests/unit/test_auth_middleware.py        56      0   100%
+tests/unit/test_celery_app.py             19      0   100%
+tests/unit/test_claude_executor.py        72      0   100%
+tests/unit/test_claude_service.py         79      0   100%
+tests/unit/test_config.py                 27      0   100%
+tests/unit/test_conftest_fixtures.py      13      0   100%
+tests/unit/test_consensus_eval.py         28      0   100%
+tests/unit/test_coordinator.py            87      0   100%
+tests/unit/test_db_connection.py          44      0   100%
+tests/unit/test_db_models.py              47      0   100%
+tests/unit/test_eu_act_formatter.py       43      0   100%
+tests/unit/test_event_builder.py          37      0   100%
+tests/unit/test_event_repo.py             39      0   100%
+tests/unit/test_execution_worker.py      171      0   100%
+tests/unit/test_foxmq_client.py          119      0   100%
+tests/unit/test_gpt4o_reviewer.py         56      0   100%
+tests/unit/test_hash_commitment.py        36      0   100%
+tests/unit/test_models_agent.py           28      0   100%
+tests/unit/test_models_task.py            42      0   100%
+tests/unit/test_openai_service.py         82      0   100%
+tests/unit/test_poc_generator.py          30      0   100%
+tests/unit/test_report_repo.py            29      0   100%
+tests/unit/test_reporting_worker.py      127      0   100%
+tests/unit/test_retry_handler.py          36      0   100%
+tests/unit/test_task_repo.py              63      0   100%
+tests/unit/test_task_schemas.py           46      0   100%
+tests/unit/test_vertex_client.py         114      0   100%
+workers/__init__.py                        0      0   100%
+workers/celery_app.py                     20      0   100%
+workers/execution_worker.py              140      0   100%
+workers/reporting_worker.py               73      0   100%
+--------------------------------------------------------------------
+TOTAL                                   3640      0   100%
+Coverage HTML written to dir tests/coverage_html
+
+Required test coverage of 100% reached. Total coverage: 100.00%
+
+============================= 275 passed in 31.09s =============================
+[21:31:24] 
+[21:31:24] pytest exit code: 0
+[21:31:24] PASS: pytest 100% coverage achieved
+[21:31:24] DONE: pytest complete. Log: C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\runs\ops_pytest_20260421_213051.log

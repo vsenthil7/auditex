@@ -1,0 +1,499 @@
+[21:32:51] 
+[21:32:51] ops.ps1  action=playwright  21/04/2026 21:32:51
+[21:32:51] Log: C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\runs\ops_playwright_20260421_213251.log
+[21:32:51] 
+[21:32:51] 
+[21:32:51] ============================================================
+[21:32:51]   PLAYWRIGHT TESTS
+[21:32:51] ============================================================
+[21:32:51] STEP 1: Clear stuck queue
+[21:32:51] >> Active before
+[21:32:52]    active 
+[21:32:52]   --------
+[21:32:52]         0
+[21:32:52]   (1 row)
+[21:32:52]   
+[21:32:52] 
+ active 
+--------
+      0
+(1 row)
+
+[21:32:52] >> Clear stuck
+[21:32:52]   UPDATE 0
+[21:32:52] 
+UPDATE 0
+[21:32:52] >> Active after clear (must be 0)
+[21:32:52]    active 
+[21:32:52]   --------
+[21:32:52]         0
+[21:32:52]   (1 row)
+[21:32:52]   
+[21:32:52] 
+ active 
+--------
+      0
+(1 row)
+
+[21:32:52] STEP 2: Restart Celery worker (clean state)
+[21:32:54]    Container auditex-celery-worker-1 Restarting 
+[21:32:54]    Container auditex-celery-worker-1 Started 
+[21:32:54]   Waiting 8s for worker to come back up...
+[21:33:02]   Celery restarted
+[21:33:02] 
+[21:33:02] STEP 3: Confirm Celery is running
+[21:33:02] >> Celery worker last 15 lines
+[21:33:02]   celery-worker-1  | whether broker connection retries are made during startup in Celery 6.0 and above.
+[21:33:02]   celery-worker-1  | If you wish to retain the existing behavior for retrying connections on startup,
+[21:33:02]   celery-worker-1  | you should set broker_connection_retry_on_startup to True.
+[21:33:02]   celery-worker-1  |   warnings.warn(
+[21:33:02]   celery-worker-1  | 
+[21:33:02]   celery-worker-1  | [2026-04-21 20:32:55,922: INFO/MainProcess] Connected to redis://redis:6379/0
+[21:33:02]   celery-worker-1  | [2026-04-21 20:32:55,924: WARNING/MainProcess] /usr/local/lib/python3.12/site-packages/celery/worker/consumer/consumer.py:508: CPendingDeprecationWarning: The broker_connection_retry configuration setting will no longer determine
+[21:33:02]   celery-worker-1  | whether broker connection retries are made during startup in Celery 6.0 and above.
+[21:33:02]   celery-worker-1  | If you wish to retain the existing behavior for retrying connections on startup,
+[21:33:02]   celery-worker-1  | you should set broker_connection_retry_on_startup to True.
+[21:33:02]   celery-worker-1  |   warnings.warn(
+[21:33:02]   celery-worker-1  | 
+[21:33:02]   celery-worker-1  | [2026-04-21 20:32:55,926: INFO/MainProcess] mingle: searching for neighbors
+[21:33:02]   celery-worker-1  | [2026-04-21 20:32:56,935: INFO/MainProcess] mingle: all alone
+[21:33:02]   celery-worker-1  | [2026-04-21 20:32:56,956: INFO/MainProcess] celery@485e4b15adf9 ready.
+[21:33:02] 
+[21:33:02] STEP 4: Run Playwright tests
+[21:33:02] > cd C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\frontend
+[21:33:02] > npx playwright test --reporter=list
+[21:33:02] 
+
+Running 26 tests using 6 workers
+
+[2026-04-21T20:33:05.617Z] 
+[2026-04-21T20:33:05.617Z] ██████████████████████████████████████████████████████████████████████
+[2026-04-21T20:33:05.643Z]   Auditex Playwright E2E  —  21/04/2026, 21:33:05
+[2026-04-21T20:33:05.643Z]   3 task types × 3 recommendations = 9 scenarios + dashboard + UI check = 11 tests
+[2026-04-21T20:33:05.665Z]   Dashboard: http://localhost:3000  API: http://localhost:8000
+[2026-04-21T20:33:05.666Z]   TC-03 accepts REJECT or REQUEST_ADDITIONAL_INFO (boundary — not APPROVE)
+[2026-04-21T20:33:05.666Z]   TC-08 accepts APPROVE or REQUEST_AMENDMENTS    (boundary — not REJECT)
+[2026-04-21T20:33:05.666Z] ██████████████████████████████████████████████████████████████████████
+  ok  5 [chromium] › tests\api-auth.spec.ts:11:3 › API Authentication › TC-17a missing X-API-Key → 401 (133ms)
+  ok  7 [chromium] › tests\api-auth.spec.ts:20:3 › API Authentication › TC-17b invalid X-API-Key → 401 (23ms)
+  ok  8 [chromium] › tests\api-auth.spec.ts:30:3 › API Authentication › TC-17c valid X-API-Key → NOT 401 (132ms)
+[2026-04-21T20:33:08.023Z] 
+[2026-04-21T20:33:08.025Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:33:08.026Z]   TC-01  Dashboard loads
+[2026-04-21T20:33:08.026Z] ════════════════════════════════════════════════════════════
+  ok  9 [chromium] › tests\form-validation.spec.ts:14:3 › Form Validation › TC-20a empty document shows validation error + no POST fired (4.5s)
+  ok  2 [chromium] › tests\empty-state.spec.ts:14:3 › Empty State › TC-19 zero-tasks dashboard shows placeholder copy + submit form still usable (5.4s)
+  ok  6 [chromium] › tests\error-states.spec.ts:9:3 › Error States › TC-16a FAILED task shows red lifecycle + failure banner (6.2s)
+  ok  3 [chromium] › tests\export-panel.spec.ts:13:3 › Export Panel — EU AI Act JSON › TC-13 export button downloads the Article 9/13/17 JSON (6.3s)
+  ok  1 [chromium] › tests\audit-trail.spec.ts:15:3 › Audit Trail — Vertex event chain › TC-12 Step 4 shows event_hash, round number and finalised_at (8.6s)
+  ok 12 [chromium] › tests\error-states.spec.ts:42:3 › Error States › TC-16b ESCALATED task uses default failure copy when no error_message (2.4s)
+  ok 11 [chromium] › tests\poc-report.spec.ts:10:3 › PoC Report — EU AI Act sections › TC-14 Article 9, Article 13, Article 17 all render with status (2.6s)
+  ok 10 [chromium] › tests\form-validation.spec.ts:37:3 › Form Validation › TC-20b whitespace-only document is treated as empty (3.3s)
+[2026-04-21T20:33:16.532Z]   PASS  ✓ header visible
+[2026-04-21T20:33:16.562Z]   PASS  ✓ Submit Task visible
+[2026-04-21T20:33:16.575Z]   PASS  ✓ select visible
+[2026-04-21T20:33:16.593Z]   PASS  ✓ textarea visible
+[2026-04-21T20:33:16.659Z]   PASS  ✓ Submit button visible
+[2026-04-21T20:33:16.674Z]   PASS  ✓ Tasks panel visible
+[2026-04-21T20:33:16.677Z]   PASS  ✓ No console errors
+[2026-04-21T20:33:16.677Z]   RESULT  TC-01 PASSED
+  ok  4 [chromium] › tests\dashboard.spec.ts:459:3 › Auditex Dashboard E2E — Full Scenario Matrix › TC-01  Dashboard loads without errors (10.7s)
+  ok 14 [chromium] › tests\vertex-badge.spec.ts:9:3 › Vertex Mode Badge › TC-15a LIVE badge rendered for mode=LIVE task (2.2s)
+[2026-04-21T20:33:17.607Z] 
+[2026-04-21T20:33:17.607Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:33:17.608Z]   TC-02  document_review → APPROVE
+[2026-04-21T20:33:17.608Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:33:17.610Z]   INFO  document_review — checking queue
+[2026-04-21T20:33:17.775Z]   INFO  document_review — active: 0
+[2026-04-21T20:33:17.776Z]   INFO  Queue clear
+[2026-04-21T20:33:17.776Z]   STEP  Navigate + submit document_review
+  ok 15 [chromium] › tests\form-validation.spec.ts:61:3 › Form Validation › TC-20c valid document fires POST and clears textarea (2.2s)
+  ok 17 [chromium] › tests\vertex-badge.spec.ts:45:3 › Vertex Mode Badge › TC-15b STUB badge rendered when mode is absent (1.6s)
+[2026-04-21T20:33:19.341Z]   PASS  ✓ Form filled
+[2026-04-21T20:33:20.030Z]   PASS  ✓ Task row clicked
+[2026-04-21T20:33:20.030Z]   STEP  Poll to COMPLETED
+  ok 13 [chromium] › tests\polling.spec.ts:12:3 › Polling › TC-18 dashboard fires listTasks roughly every 3 seconds (10.0s)
+[2026-04-21T20:33:25.085Z]   INFO  [5s] 5b651fc5… | EXECUTING | document review | 4/21/2026, 9:33:19 PM
+[2026-04-21T20:33:30.178Z]   INFO  [10s] 5b651fc5… | REVIEWING | document review | 4/21/2026, 9:33:19 PM
+[2026-04-21T20:33:35.282Z]   INFO  [15s] 5b651fc5… | FINALISING | document review | 4/21/2026, 9:33:19 PM
+[2026-04-21T20:33:40.379Z]   INFO  [20s] 5b651fc5… | COMPLETED | document review | 4/21/2026, 9:33:19 PM
+[2026-04-21T20:33:40.380Z]   PASS  ✓ COMPLETED in 20s
+[2026-04-21T20:33:40.380Z]   STEP  Assert recommendation = APPROVE
+[2026-04-21T20:33:42.459Z]   INFO  Recommendation badge: APPROVE
+[2026-04-21T20:33:42.459Z]   STEP  Assert all 5 pipeline steps visible
+[2026-04-21T20:33:42.464Z]   PASS  ✓ Step 1 visible
+[2026-04-21T20:33:42.467Z]   PASS  ✓ Step 2 visible
+[2026-04-21T20:33:42.470Z]   PASS  ✓ Step 3 visible
+[2026-04-21T20:33:42.473Z]   PASS  ✓ Step 4 visible
+[2026-04-21T20:33:42.476Z]   PASS  ✓ Step 5 visible
+[2026-04-21T20:33:42.480Z]   PASS  ✓ 5 green lifecycle dot(s)
+[2026-04-21T20:33:42.483Z]   PASS  ✓ No blue active dot
+[2026-04-21T20:33:43.038Z]   INFO  Reviewer cards: 3
+[2026-04-21T20:33:43.038Z]   PASS  ✓ 3 reviewer card(s)
+[2026-04-21T20:33:43.040Z]   PASS  ✓ Recommendation = APPROVE ✓
+[2026-04-21T20:33:43.040Z]   RESULT  TC-02 PASSED
+  ok 16 [chromium] › tests\dashboard.spec.ts:482:3 › Auditex Dashboard E2E — Full Scenario Matrix › TC-02  document_review → APPROVE (complete mortgage) (26.0s)
+[2026-04-21T20:33:43.496Z] 
+[2026-04-21T20:33:43.497Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:33:43.497Z]   TC-03  document_review → REQUEST_ADDITIONAL_INFO or REJECT (not APPROVE)
+[2026-04-21T20:33:43.497Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:33:43.497Z]   INFO  document_review — checking queue
+[2026-04-21T20:33:43.529Z]   INFO  document_review — active: 0
+[2026-04-21T20:33:43.529Z]   INFO  Queue clear
+[2026-04-21T20:33:43.530Z]   STEP  Navigate + submit document_review
+[2026-04-21T20:33:44.525Z]   PASS  ✓ Form filled
+[2026-04-21T20:33:45.140Z]   PASS  ✓ Task row clicked
+[2026-04-21T20:33:45.140Z]   STEP  Poll to COMPLETED
+[2026-04-21T20:33:50.194Z]   INFO  [5s] 2b6597cf… | EXECUTING | document review | 4/21/2026, 9:33:44 PM
+[2026-04-21T20:33:55.285Z]   INFO  [10s] 2b6597cf… | REVIEWING | document review | 4/21/2026, 9:33:44 PM
+[2026-04-21T20:34:00.371Z]   INFO  [15s] 2b6597cf… | COMPLETED | document review | 4/21/2026, 9:33:44 PM
+[2026-04-21T20:34:00.371Z]   PASS  ✓ COMPLETED in 15s
+[2026-04-21T20:34:00.371Z]   STEP  Assert recommendation is non-approval (REQUEST_ADDITIONAL_INFO or REJECT) (not APPROVE)
+[2026-04-21T20:34:02.423Z]   INFO  Recommendation badge: REQUEST_ADDITIONAL_INFO
+[2026-04-21T20:34:02.423Z]   STEP  Assert all 5 pipeline steps visible
+[2026-04-21T20:34:02.426Z]   PASS  ✓ Step 1 visible
+[2026-04-21T20:34:02.429Z]   PASS  ✓ Step 2 visible
+[2026-04-21T20:34:02.431Z]   PASS  ✓ Step 3 visible
+[2026-04-21T20:34:02.435Z]   PASS  ✓ Step 4 visible
+[2026-04-21T20:34:02.437Z]   PASS  ✓ Step 5 visible
+[2026-04-21T20:34:02.440Z]   PASS  ✓ 5 green lifecycle dot(s)
+[2026-04-21T20:34:02.444Z]   PASS  ✓ No blue active dot
+[2026-04-21T20:34:02.998Z]   INFO  Reviewer cards: 3
+[2026-04-21T20:34:02.998Z]   PASS  ✓ 3 reviewer card(s)
+[2026-04-21T20:34:02.999Z]   PASS  ✓ Recommendation = REQUEST_ADDITIONAL_INFO — valid (non-approval (REQUEST_ADDITIONAL_INFO or REJECT)) ✓
+[2026-04-21T20:34:02.999Z]   RESULT  TC-03 PASSED
+  ok 18 [chromium] › tests\dashboard.spec.ts:492:3 › Auditex Dashboard E2E — Full Scenario Matrix › TC-03  document_review → non-APPROVE (missing docs — boundary) (19.8s)
+[2026-04-21T20:34:03.407Z] 
+[2026-04-21T20:34:03.408Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:34:03.408Z]   TC-04  document_review → REJECT
+[2026-04-21T20:34:03.408Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:34:03.408Z]   INFO  document_review — checking queue
+[2026-04-21T20:34:03.457Z]   INFO  document_review — active: 0
+[2026-04-21T20:34:03.458Z]   INFO  Queue clear
+[2026-04-21T20:34:03.458Z]   STEP  Navigate + submit document_review
+[2026-04-21T20:34:04.561Z]   PASS  ✓ Form filled
+[2026-04-21T20:34:05.207Z]   PASS  ✓ Task row clicked
+[2026-04-21T20:34:05.207Z]   STEP  Poll to COMPLETED
+[2026-04-21T20:34:10.246Z]   INFO  [5s] 86635c2a… | EXECUTING | document review | 4/21/2026, 9:34:04 PM
+[2026-04-21T20:34:15.346Z]   INFO  [10s] 86635c2a… | REVIEWING | document review | 4/21/2026, 9:34:04 PM
+[2026-04-21T20:34:20.440Z]   INFO  [15s] 86635c2a… | COMPLETED | document review | 4/21/2026, 9:34:04 PM
+[2026-04-21T20:34:20.440Z]   PASS  ✓ COMPLETED in 15s
+[2026-04-21T20:34:20.440Z]   STEP  Assert recommendation = REJECT
+[2026-04-21T20:34:22.515Z]   INFO  Recommendation badge: REJECT
+[2026-04-21T20:34:22.515Z]   STEP  Assert all 5 pipeline steps visible
+[2026-04-21T20:34:22.521Z]   PASS  ✓ Step 1 visible
+[2026-04-21T20:34:22.525Z]   PASS  ✓ Step 2 visible
+[2026-04-21T20:34:22.528Z]   PASS  ✓ Step 3 visible
+[2026-04-21T20:34:22.531Z]   PASS  ✓ Step 4 visible
+[2026-04-21T20:34:22.536Z]   PASS  ✓ Step 5 visible
+[2026-04-21T20:34:22.541Z]   PASS  ✓ 5 green lifecycle dot(s)
+[2026-04-21T20:34:22.546Z]   PASS  ✓ No blue active dot
+[2026-04-21T20:34:23.118Z]   INFO  Reviewer cards: 3
+[2026-04-21T20:34:23.118Z]   PASS  ✓ 3 reviewer card(s)
+[2026-04-21T20:34:23.118Z]   PASS  ✓ Recommendation = REJECT ✓
+[2026-04-21T20:34:23.118Z]   RESULT  TC-04 PASSED
+  ok 19 [chromium] › tests\dashboard.spec.ts:503:3 › Auditex Dashboard E2E — Full Scenario Matrix › TC-04  document_review → REJECT (fraud, impossible data) (20.1s)
+[2026-04-21T20:34:23.549Z] 
+[2026-04-21T20:34:23.550Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:34:23.550Z]   TC-05  risk_analysis → APPROVE
+[2026-04-21T20:34:23.550Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:34:23.551Z]   INFO  risk_analysis — checking queue
+[2026-04-21T20:34:23.621Z]   INFO  risk_analysis — active: 0
+[2026-04-21T20:34:23.622Z]   INFO  Queue clear
+[2026-04-21T20:34:23.622Z]   STEP  Navigate + submit risk_analysis
+[2026-04-21T20:34:24.693Z]   PASS  ✓ Form filled
+[2026-04-21T20:34:25.358Z]   PASS  ✓ Task row clicked
+[2026-04-21T20:34:25.358Z]   STEP  Poll to COMPLETED
+[2026-04-21T20:34:30.412Z]   INFO  [5s] 448c5a26… | EXECUTING | risk analysis | 4/21/2026, 9:34:24 PM
+[2026-04-21T20:34:35.497Z]   INFO  [10s] 448c5a26… | EXECUTING | risk analysis | 4/21/2026, 9:34:24 PM
+[2026-04-21T20:34:40.580Z]   INFO  [15s] 448c5a26… | REVIEWING | risk analysis | 4/21/2026, 9:34:24 PM
+[2026-04-21T20:34:45.662Z]   INFO  [20s] 448c5a26… | FINALISING | risk analysis | 4/21/2026, 9:34:24 PM
+[2026-04-21T20:34:50.745Z]   INFO  [25s] 448c5a26… | COMPLETED | risk analysis | 4/21/2026, 9:34:24 PM
+[2026-04-21T20:34:50.745Z]   PASS  ✓ COMPLETED in 25s
+[2026-04-21T20:34:50.745Z]   STEP  Assert recommendation = APPROVE
+[2026-04-21T20:34:52.821Z]   INFO  Recommendation badge: APPROVE
+[2026-04-21T20:34:52.822Z]   STEP  Assert all 5 pipeline steps visible
+[2026-04-21T20:34:52.827Z]   PASS  ✓ Step 1 visible
+[2026-04-21T20:34:52.832Z]   PASS  ✓ Step 2 visible
+[2026-04-21T20:34:52.837Z]   PASS  ✓ Step 3 visible
+[2026-04-21T20:34:52.841Z]   PASS  ✓ Step 4 visible
+[2026-04-21T20:34:52.846Z]   PASS  ✓ Step 5 visible
+[2026-04-21T20:34:52.851Z]   PASS  ✓ 5 green lifecycle dot(s)
+[2026-04-21T20:34:52.858Z]   PASS  ✓ No blue active dot
+[2026-04-21T20:34:53.420Z]   INFO  Reviewer cards: 3
+[2026-04-21T20:34:53.420Z]   PASS  ✓ 3 reviewer card(s)
+[2026-04-21T20:34:53.422Z]   PASS  ✓ Recommendation = APPROVE ✓
+[2026-04-21T20:34:53.422Z]   RESULT  TC-05 PASSED
+  ok 20 [chromium] › tests\dashboard.spec.ts:513:3 › Auditex Dashboard E2E — Full Scenario Matrix › TC-05  risk_analysis → APPROVE (healthy profitable business) (30.4s)
+[2026-04-21T20:34:53.971Z] 
+[2026-04-21T20:34:53.971Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:34:53.971Z]   TC-06  risk_analysis → REQUEST_ADDITIONAL_INFO
+[2026-04-21T20:34:53.971Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:34:53.972Z]   INFO  risk_analysis — checking queue
+[2026-04-21T20:34:54.029Z]   INFO  risk_analysis — active: 0
+[2026-04-21T20:34:54.029Z]   INFO  Queue clear
+[2026-04-21T20:34:54.029Z]   STEP  Navigate + submit risk_analysis
+[2026-04-21T20:34:54.928Z]   PASS  ✓ Form filled
+[2026-04-21T20:34:55.577Z]   PASS  ✓ Task row clicked
+[2026-04-21T20:34:55.577Z]   STEP  Poll to COMPLETED
+[2026-04-21T20:35:00.627Z]   INFO  [5s] 570b5fcf… | EXECUTING | risk analysis | 4/21/2026, 9:34:55 PM
+[2026-04-21T20:35:05.704Z]   INFO  [10s] 570b5fcf… | EXECUTING | risk analysis | 4/21/2026, 9:34:55 PM
+[2026-04-21T20:35:10.779Z]   INFO  [15s] 570b5fcf… | FINALISING | risk analysis | 4/21/2026, 9:34:55 PM
+[2026-04-21T20:35:15.872Z]   INFO  [20s] 570b5fcf… | COMPLETED | risk analysis | 4/21/2026, 9:34:55 PM
+[2026-04-21T20:35:15.872Z]   PASS  ✓ COMPLETED in 20s
+[2026-04-21T20:35:15.873Z]   STEP  Assert recommendation = REQUEST_ADDITIONAL_INFO
+[2026-04-21T20:35:17.945Z]   INFO  Recommendation badge: REQUEST_ADDITIONAL_INFO
+[2026-04-21T20:35:17.945Z]   STEP  Assert all 5 pipeline steps visible
+[2026-04-21T20:35:17.950Z]   PASS  ✓ Step 1 visible
+[2026-04-21T20:35:17.958Z]   PASS  ✓ Step 2 visible
+[2026-04-21T20:35:17.962Z]   PASS  ✓ Step 3 visible
+[2026-04-21T20:35:17.971Z]   PASS  ✓ Step 4 visible
+[2026-04-21T20:35:17.976Z]   PASS  ✓ Step 5 visible
+[2026-04-21T20:35:17.983Z]   PASS  ✓ 5 green lifecycle dot(s)
+[2026-04-21T20:35:17.990Z]   PASS  ✓ No blue active dot
+[2026-04-21T20:35:18.554Z]   INFO  Reviewer cards: 3
+[2026-04-21T20:35:18.554Z]   PASS  ✓ 3 reviewer card(s)
+[2026-04-21T20:35:18.555Z]   PASS  ✓ Recommendation = REQUEST_ADDITIONAL_INFO ✓
+[2026-04-21T20:35:18.555Z]   RESULT  TC-06 PASSED
+  ok 21 [chromium] › tests\dashboard.spec.ts:523:3 › Auditex Dashboard E2E — Full Scenario Matrix › TC-06  risk_analysis → REQUEST_ADDITIONAL_INFO (startup, missing audits) (25.1s)
+[2026-04-21T20:35:19.041Z] 
+[2026-04-21T20:35:19.041Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:35:19.041Z]   TC-07  risk_analysis → REJECT
+[2026-04-21T20:35:19.041Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:35:19.042Z]   INFO  risk_analysis — checking queue
+[2026-04-21T20:35:19.121Z]   INFO  risk_analysis — active: 0
+[2026-04-21T20:35:19.121Z]   INFO  Queue clear
+[2026-04-21T20:35:19.121Z]   STEP  Navigate + submit risk_analysis
+[2026-04-21T20:35:20.028Z]   PASS  ✓ Form filled
+[2026-04-21T20:35:20.691Z]   PASS  ✓ Task row clicked
+[2026-04-21T20:35:20.691Z]   STEP  Poll to COMPLETED
+[2026-04-21T20:35:25.724Z]   INFO  [5s] e507d2a1… | EXECUTING | risk analysis | 4/21/2026, 9:35:20 PM
+[2026-04-21T20:35:30.789Z]   INFO  [10s] e507d2a1… | REVIEWING | risk analysis | 4/21/2026, 9:35:20 PM
+[2026-04-21T20:35:35.870Z]   INFO  [15s] e507d2a1… | COMPLETED | risk analysis | 4/21/2026, 9:35:20 PM
+[2026-04-21T20:35:35.870Z]   PASS  ✓ COMPLETED in 15s
+[2026-04-21T20:35:35.870Z]   STEP  Assert recommendation = REJECT
+[2026-04-21T20:35:37.927Z]   INFO  Recommendation badge: REJECT
+[2026-04-21T20:35:37.927Z]   STEP  Assert all 5 pipeline steps visible
+[2026-04-21T20:35:37.931Z]   PASS  ✓ Step 1 visible
+[2026-04-21T20:35:37.937Z]   PASS  ✓ Step 2 visible
+[2026-04-21T20:35:37.940Z]   PASS  ✓ Step 3 visible
+[2026-04-21T20:35:37.944Z]   PASS  ✓ Step 4 visible
+[2026-04-21T20:35:37.947Z]   PASS  ✓ Step 5 visible
+[2026-04-21T20:35:37.954Z]   PASS  ✓ 5 green lifecycle dot(s)
+[2026-04-21T20:35:37.959Z]   PASS  ✓ No blue active dot
+[2026-04-21T20:35:38.547Z]   INFO  Reviewer cards: 3
+[2026-04-21T20:35:38.547Z]   PASS  ✓ 3 reviewer card(s)
+[2026-04-21T20:35:38.548Z]   PASS  ✓ Recommendation = REJECT ✓
+[2026-04-21T20:35:38.548Z]   RESULT  TC-07 PASSED
+  ok 22 [chromium] › tests\dashboard.spec.ts:533:3 › Auditex Dashboard E2E — Full Scenario Matrix › TC-07  risk_analysis → REJECT (insolvent, administrator appointed) (20.0s)
+[2026-04-21T20:35:39.012Z] 
+[2026-04-21T20:35:39.013Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:35:39.013Z]   TC-08  contract_check → APPROVE or REQUEST_AMENDMENTS (not REJECT)
+[2026-04-21T20:35:39.013Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:35:39.014Z]   INFO  contract_check — checking queue
+[2026-04-21T20:35:39.071Z]   INFO  contract_check — active: 0
+[2026-04-21T20:35:39.071Z]   INFO  Queue clear
+[2026-04-21T20:35:39.071Z]   STEP  Navigate + submit contract_check
+[2026-04-21T20:35:40.073Z]   PASS  ✓ Form filled
+[2026-04-21T20:35:40.740Z]   PASS  ✓ Task row clicked
+[2026-04-21T20:35:40.740Z]   STEP  Poll to COMPLETED
+[2026-04-21T20:35:45.794Z]   INFO  [5s] ecc1d24f… | EXECUTING | contract check | 4/21/2026, 9:35:40 PM
+[2026-04-21T20:35:50.862Z]   INFO  [10s] ecc1d24f… | EXECUTING | contract check | 4/21/2026, 9:35:40 PM
+[2026-04-21T20:35:55.921Z]   INFO  [15s] ecc1d24f… | EXECUTING | contract check | 4/21/2026, 9:35:40 PM
+[2026-04-21T20:36:00.996Z]   INFO  [20s] ecc1d24f… | REVIEWING | contract check | 4/21/2026, 9:35:40 PM
+[2026-04-21T20:36:06.063Z]   INFO  [25s] ecc1d24f… | FINALISING | contract check | 4/21/2026, 9:35:40 PM
+[2026-04-21T20:36:11.166Z]   INFO  [30s] ecc1d24f… | COMPLETED | contract check | 4/21/2026, 9:35:40 PM
+[2026-04-21T20:36:11.166Z]   PASS  ✓ COMPLETED in 30s
+[2026-04-21T20:36:11.166Z]   STEP  Assert recommendation is non-rejection (APPROVE or REQUEST_AMENDMENTS) (not REJECT)
+[2026-04-21T20:36:13.221Z]   INFO  Recommendation badge: REQUEST_AMENDMENTS
+[2026-04-21T20:36:13.221Z]   STEP  Assert all 5 pipeline steps visible
+[2026-04-21T20:36:13.223Z]   PASS  ✓ Step 1 visible
+[2026-04-21T20:36:13.226Z]   PASS  ✓ Step 2 visible
+[2026-04-21T20:36:13.229Z]   PASS  ✓ Step 3 visible
+[2026-04-21T20:36:13.232Z]   PASS  ✓ Step 4 visible
+[2026-04-21T20:36:13.235Z]   PASS  ✓ Step 5 visible
+[2026-04-21T20:36:13.237Z]   PASS  ✓ 5 green lifecycle dot(s)
+[2026-04-21T20:36:13.240Z]   PASS  ✓ No blue active dot
+[2026-04-21T20:36:13.784Z]   INFO  Reviewer cards: 3
+[2026-04-21T20:36:13.784Z]   PASS  ✓ 3 reviewer card(s)
+[2026-04-21T20:36:13.786Z]   PASS  ✓ Recommendation = REQUEST_AMENDMENTS — valid (non-rejection (APPROVE or REQUEST_AMENDMENTS)) ✓
+[2026-04-21T20:36:13.786Z]   RESULT  TC-08 PASSED
+  ok 23 [chromium] › tests\dashboard.spec.ts:543:3 › Auditex Dashboard E2E — Full Scenario Matrix › TC-08  contract_check → non-REJECT (compliant DPA — boundary) (35.2s)
+[2026-04-21T20:36:14.292Z] 
+[2026-04-21T20:36:14.292Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:36:14.292Z]   TC-09  contract_check → REQUEST_AMENDMENTS
+[2026-04-21T20:36:14.292Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:36:14.293Z]   INFO  contract_check — checking queue
+[2026-04-21T20:36:14.362Z]   INFO  contract_check — active: 0
+[2026-04-21T20:36:14.363Z]   INFO  Queue clear
+[2026-04-21T20:36:14.363Z]   STEP  Navigate + submit contract_check
+[2026-04-21T20:36:15.461Z]   PASS  ✓ Form filled
+[2026-04-21T20:36:16.091Z]   PASS  ✓ Task row clicked
+[2026-04-21T20:36:16.091Z]   STEP  Poll to COMPLETED
+[2026-04-21T20:36:21.119Z]   INFO  [5s] 30e7bed2… | EXECUTING | contract check | 4/21/2026, 9:36:15 PM
+[2026-04-21T20:36:26.190Z]   INFO  [10s] 30e7bed2… | EXECUTING | contract check | 4/21/2026, 9:36:15 PM
+[2026-04-21T20:36:31.273Z]   INFO  [15s] 30e7bed2… | REVIEWING | contract check | 4/21/2026, 9:36:15 PM
+[2026-04-21T20:36:36.352Z]   INFO  [20s] 30e7bed2… | COMPLETED | contract check | 4/21/2026, 9:36:15 PM
+[2026-04-21T20:36:36.352Z]   PASS  ✓ COMPLETED in 20s
+[2026-04-21T20:36:36.353Z]   STEP  Assert recommendation = REQUEST_AMENDMENTS
+[2026-04-21T20:36:38.406Z]   INFO  Recommendation badge: REQUEST_AMENDMENTS
+[2026-04-21T20:36:38.407Z]   STEP  Assert all 5 pipeline steps visible
+[2026-04-21T20:36:38.410Z]   PASS  ✓ Step 1 visible
+[2026-04-21T20:36:38.413Z]   PASS  ✓ Step 2 visible
+[2026-04-21T20:36:38.418Z]   PASS  ✓ Step 3 visible
+[2026-04-21T20:36:38.421Z]   PASS  ✓ Step 4 visible
+[2026-04-21T20:36:38.424Z]   PASS  ✓ Step 5 visible
+[2026-04-21T20:36:38.427Z]   PASS  ✓ 5 green lifecycle dot(s)
+[2026-04-21T20:36:38.430Z]   PASS  ✓ No blue active dot
+[2026-04-21T20:36:38.989Z]   INFO  Reviewer cards: 3
+[2026-04-21T20:36:38.989Z]   PASS  ✓ 3 reviewer card(s)
+[2026-04-21T20:36:38.992Z]   PASS  ✓ Recommendation = REQUEST_AMENDMENTS ✓
+[2026-04-21T20:36:38.992Z]   RESULT  TC-09 PASSED
+  ok 24 [chromium] › tests\dashboard.spec.ts:554:3 › Auditex Dashboard E2E — Full Scenario Matrix › TC-09  contract_check → REQUEST_AMENDMENTS (named GDPR gaps) (25.2s)
+[2026-04-21T20:36:39.505Z] 
+[2026-04-21T20:36:39.506Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:36:39.506Z]   TC-10  contract_check → REJECT
+[2026-04-21T20:36:39.506Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:36:39.507Z]   INFO  contract_check — checking queue
+[2026-04-21T20:36:39.585Z]   INFO  contract_check — active: 0
+[2026-04-21T20:36:39.585Z]   INFO  Queue clear
+[2026-04-21T20:36:39.585Z]   STEP  Navigate + submit contract_check
+[2026-04-21T20:36:40.628Z]   PASS  ✓ Form filled
+[2026-04-21T20:36:41.291Z]   PASS  ✓ Task row clicked
+[2026-04-21T20:36:41.291Z]   STEP  Poll to COMPLETED
+[2026-04-21T20:36:46.330Z]   INFO  [5s] 41c52fe3… | EXECUTING | contract check | 4/21/2026, 9:36:40 PM
+[2026-04-21T20:36:51.400Z]   INFO  [10s] 41c52fe3… | EXECUTING | contract check | 4/21/2026, 9:36:40 PM
+[2026-04-21T20:36:56.475Z]   INFO  [15s] 41c52fe3… | EXECUTING | contract check | 4/21/2026, 9:36:40 PM
+[2026-04-21T20:37:01.542Z]   INFO  [20s] 41c52fe3… | REVIEWING | contract check | 4/21/2026, 9:36:40 PM
+[2026-04-21T20:37:06.608Z]   INFO  [25s] 41c52fe3… | REVIEWING | contract check | 4/21/2026, 9:36:40 PM
+[2026-04-21T20:37:11.688Z]   INFO  [30s] 41c52fe3… | COMPLETED | contract check | 4/21/2026, 9:36:40 PM
+[2026-04-21T20:37:11.689Z]   PASS  ✓ COMPLETED in 30s
+[2026-04-21T20:37:11.689Z]   STEP  Assert recommendation = REJECT
+[2026-04-21T20:37:13.780Z]   INFO  Recommendation badge: REJECT
+[2026-04-21T20:37:13.780Z]   STEP  Assert all 5 pipeline steps visible
+[2026-04-21T20:37:13.788Z]   PASS  ✓ Step 1 visible
+[2026-04-21T20:37:13.793Z]   PASS  ✓ Step 2 visible
+[2026-04-21T20:37:13.799Z]   PASS  ✓ Step 3 visible
+[2026-04-21T20:37:13.806Z]   PASS  ✓ Step 4 visible
+[2026-04-21T20:37:13.814Z]   PASS  ✓ Step 5 visible
+[2026-04-21T20:37:13.823Z]   PASS  ✓ 5 green lifecycle dot(s)
+[2026-04-21T20:37:13.829Z]   PASS  ✓ No blue active dot
+[2026-04-21T20:37:14.384Z]   INFO  Reviewer cards: 3
+[2026-04-21T20:37:14.384Z]   PASS  ✓ 3 reviewer card(s)
+[2026-04-21T20:37:14.384Z]   PASS  ✓ Recommendation = REJECT ✓
+[2026-04-21T20:37:14.384Z]   RESULT  TC-10 PASSED
+  ok 25 [chromium] › tests\dashboard.spec.ts:564:3 › Auditex Dashboard E2E — Full Scenario Matrix › TC-10  contract_check → REJECT (NHS data sold, zero liability) (35.4s)
+[2026-04-21T20:37:14.911Z] 
+[2026-04-21T20:37:14.911Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:37:14.911Z]   TC-11  UI consistency
+[2026-04-21T20:37:14.911Z] ════════════════════════════════════════════════════════════
+[2026-04-21T20:37:16.495Z]   PASS  ✓ Page loaded
+[2026-04-21T20:37:16.519Z]   INFO  COMPLETED tasks: 97
+[2026-04-21T20:37:16.520Z]   PASS  ✓ 97 completed tasks
+[2026-04-21T20:37:18.134Z]   INFO  Task 1: 41c52fe3 | REJECT
+[2026-04-21T20:37:18.190Z]   PASS  ✓ Task 1 (41c52fe3): all 5 steps, green lifecycle ✓
+[2026-04-21T20:37:19.775Z]   INFO  Task 2: 30e7bed2 | REQUEST_AMENDMENTS
+[2026-04-21T20:37:19.805Z]   PASS  ✓ Task 2 (30e7bed2): all 5 steps, green lifecycle ✓
+[2026-04-21T20:37:21.365Z]   INFO  Task 3: ecc1d24f | REQUEST_AMENDMENTS
+[2026-04-21T20:37:21.392Z]   PASS  ✓ Task 3 (ecc1d24f): all 5 steps, green lifecycle ✓
+[2026-04-21T20:37:22.952Z]   INFO  Task 4: e507d2a1 | REJECT
+[2026-04-21T20:37:22.972Z]   PASS  ✓ Task 4 (e507d2a1): all 5 steps, green lifecycle ✓
+[2026-04-21T20:37:24.537Z]   INFO  Task 5: 570b5fcf | REQUEST_ADDITIONAL_INFO
+[2026-04-21T20:37:24.569Z]   PASS  ✓ Task 5 (570b5fcf): all 5 steps, green lifecycle ✓
+[2026-04-21T20:37:26.111Z]   INFO  Task 6: 448c5a26 | APPROVE
+[2026-04-21T20:37:26.147Z]   PASS  ✓ Task 6 (448c5a26): all 5 steps, green lifecycle ✓
+[2026-04-21T20:37:27.707Z]   INFO  Task 7: 86635c2a | REJECT
+[2026-04-21T20:37:27.728Z]   PASS  ✓ Task 7 (86635c2a): all 5 steps, green lifecycle ✓
+[2026-04-21T20:37:29.288Z]   INFO  Task 8: 2b6597cf | REQUEST_ADDITIONAL_INFO
+[2026-04-21T20:37:29.313Z]   PASS  ✓ Task 8 (2b6597cf): all 5 steps, green lifecycle ✓
+[2026-04-21T20:37:30.872Z]   INFO  Task 9: 5b651fc5 | APPROVE
+[2026-04-21T20:37:30.915Z]   PASS  ✓ Task 9 (5b651fc5): all 5 steps, green lifecycle ✓
+[2026-04-21T20:37:30.915Z]   PASS  ✓ All 9 tasks consistent — 5 steps, green lifecycle, recommendation badges
+[2026-04-21T20:37:30.915Z]   RESULT  TC-11 PASSED
+[2026-04-21T20:37:31.289Z] 
+[2026-04-21T20:37:31.289Z] Run complete. Log: C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\frontend\tests\results\playwright-run-2026-04-21T20-33-05-563Z.log
+  ok 26 [chromium] › tests\dashboard.spec.ts:574:3 › Auditex Dashboard E2E — Full Scenario Matrix › TC-11  UI consistency — all 9 tasks: 5 steps, green lifecycle, badges (16.6s)
+
+  26 passed (4.5m)
+[21:37:31] 
+[21:37:31] STEP 5: Celery logs after tests
+[21:37:31] >> Celery worker last 50 lines
+[21:37:32]   celery-worker-1  |     super().close()
+[21:37:32]   celery-worker-1  |   File "/usr/local/lib/python3.12/asyncio/selector_events.py", line 875, in close
+[21:37:32]   celery-worker-1  |     self._loop.call_soon(self._call_connection_lost, None)
+[21:37:32]   celery-worker-1  |   File "/usr/local/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+[21:37:32]   celery-worker-1  |     self._check_closed()
+[21:37:32]   celery-worker-1  |   File "/usr/local/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+[21:37:32]   celery-worker-1  |     raise RuntimeError('Event loop is closed')
+[21:37:32]   celery-worker-1  | RuntimeError: Event loop is closed
+[21:37:32]   celery-worker-1  | [2026-04-21 20:36:40,902: INFO/ForkPoolWorker-4] Executing task 41c52fe3-fee0-4c60-a024-a24883ad245c type=contract_check model=claude-sonnet-4-6
+[21:37:32]   celery-worker-1  | [2026-04-21 20:36:42,285: INFO/ForkPoolWorker-2] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[21:37:32]   celery-worker-1  | [2026-04-21 20:36:42,289: INFO/ForkPoolWorker-2] Claude call succeeded | attempt=1 elapsed=10.29s input_tokens=1015 output_tokens=624 model=claude-sonnet-4-6
+[21:37:32]   celery-worker-1  | [2026-04-21 20:36:42,321: INFO/ForkPoolWorker-2] workers.reporting_worker.generate_poc_report[3ea4d136-6cc9-4819-8021-8ca3834a64fe]: generate_poc_report DONE | task=30e7bed2-2c3d-4229-b648-03d954e4e07e report=89c82c34-6065-4b4d-b7c0-f3451272c4dd
+[21:37:32]   celery-worker-1  | [2026-04-21 20:36:42,327: INFO/ForkPoolWorker-2] workers.reporting_worker.generate_poc_report[3ea4d136-6cc9-4819-8021-8ca3834a64fe]: generate_poc_report: engine disposed for task 30e7bed2-2c3d-4229-b648-03d954e4e07e
+[21:37:32]   celery-worker-1  | [2026-04-21 20:36:42,330: INFO/ForkPoolWorker-2] Task workers.reporting_worker.generate_poc_report[3ea4d136-6cc9-4819-8021-8ca3834a64fe] succeeded in 10.387672505996306s: {'task_id': '30e7bed2-2c3d-4229-b648-03d954e4e07e', 'outcome': 'GENERATED', 'report_id': '89c82c34-6065-4b4d-b7c0-f3451272c4dd'}
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:00,318: INFO/ForkPoolWorker-4] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:00,320: INFO/ForkPoolWorker-4] Claude call succeeded | attempt=1 elapsed=19.40s input_tokens=546 output_tokens=925 model=claude-sonnet-4-6
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:00,320: INFO/ForkPoolWorker-4] Task 41c52fe3-fee0-4c60-a024-a24883ad245c complete | confidence=0.990 tokens=1471
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:00,333: INFO/ForkPoolWorker-4] workers.execution_worker.execute_task[c2feb0e6-c00c-4811-82f3-8ab2511a04f0]: execute_task: execution complete, starting review | task=41c52fe3-fee0-4c60-a024-a24883ad245c model=claude-sonnet-4-6 confidence=0.990
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:00,333: INFO/ForkPoolWorker-4] run_review_pipeline: starting | task=41c52fe3-fee0-4c60-a024-a24883ad245c task_type=contract_check
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:00,334: INFO/ForkPoolWorker-4] run_review_pipeline: calling reviewers in parallel | task=41c52fe3-fee0-4c60-a024-a24883ad245c
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:00,334: INFO/ForkPoolWorker-4] GPT-4o reviewer: starting review | task_type=contract_check
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:00,344: INFO/ForkPoolWorker-4] GPT-4o reviewer: starting review | task_type=contract_check
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:02,920: INFO/ForkPoolWorker-4] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:02,921: INFO/ForkPoolWorker-4] OpenAI call succeeded | attempt=1 elapsed=2.57s input=1324 output=130 model=gpt-4o-2024-08-06
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:02,921: INFO/ForkPoolWorker-4] GPT-4o reviewer: complete | verdict=APPROVE confidence=0.950 model=gpt-4o-2024-08-06
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:03,538: INFO/ForkPoolWorker-4] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:03,540: INFO/ForkPoolWorker-4] OpenAI call succeeded | attempt=1 elapsed=3.20s input=1324 output=122 model=gpt-4o-2024-08-06
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:03,541: INFO/ForkPoolWorker-4] GPT-4o reviewer: complete | verdict=APPROVE confidence=0.950 model=gpt-4o-2024-08-06
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:05,059: INFO/ForkPoolWorker-4] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:05,060: INFO/ForkPoolWorker-4] Claude call succeeded | attempt=1 elapsed=4.70s input_tokens=1469 output_tokens=179 model=claude-sonnet-4-6
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:05,061: INFO/ForkPoolWorker-4] Claude third-reviewer: complete | verdict=APPROVE confidence=0.970 model=claude-sonnet-4-6
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:05,061: INFO/ForkPoolWorker-4] run_review_pipeline: verdicts received | task=41c52fe3-fee0-4c60-a024-a24883ad245c r1=APPROVE r2=APPROVE r3=APPROVE
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:05,061: INFO/ForkPoolWorker-4] run_review_pipeline: commitments computed | task=41c52fe3-fee0-4c60-a024-a24883ad245c h1=36331229e455ec5e... h2=97dafd08d2844246... h3=48f63103aa4f16de...
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:05,061: INFO/ForkPoolWorker-4] evaluate_consensus: approve=3/3 label=3_OF_3_APPROVE passed=True
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:05,061: INFO/ForkPoolWorker-4] run_review_pipeline: complete | task=41c52fe3-fee0-4c60-a024-a24883ad245c consensus=3_OF_3_APPROVE all_verified=True
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:05,076: INFO/ForkPoolWorker-4] workers.execution_worker.execute_task[c2feb0e6-c00c-4811-82f3-8ab2511a04f0]: execute_task: review complete, FINALISING | task=41c52fe3-fee0-4c60-a024-a24883ad245c consensus=3_OF_3_APPROVE
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:06,080: INFO/ForkPoolWorker-4] FOXMQ_LIVE: event published ✓ | topic=auditex/events/task_completed event_type=task_completed task_id=41c52fe3
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:07,094: INFO/ForkPoolWorker-4] VERTEX_LIVE: event finalised ✓ | hash=80cdb802916098d2... round=131 foxmq_ts=n/a task=41c52fe3
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:07,094: INFO/ForkPoolWorker-4] workers.execution_worker.execute_task[c2feb0e6-c00c-4811-82f3-8ab2511a04f0]: execute_task: Vertex finalised | task=41c52fe3-fee0-4c60-a024-a24883ad245c hash=80cdb802916098d2... round=131
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:07,105: INFO/ForkPoolWorker-4] workers.execution_worker.execute_task[c2feb0e6-c00c-4811-82f3-8ab2511a04f0]: execute_task COMPLETED | task=41c52fe3-fee0-4c60-a024-a24883ad245c consensus=3_OF_3_APPROVE vertex_round=131
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:07,107: INFO/ForkPoolWorker-4] workers.execution_worker.execute_task[c2feb0e6-c00c-4811-82f3-8ab2511a04f0]: execute_task: reporting task dispatched | task=41c52fe3-fee0-4c60-a024-a24883ad245c
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:07,107: INFO/MainProcess] Task workers.reporting_worker.generate_poc_report[9f5afbe5-6362-4cfd-b476-73a078987f91] received
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:07,109: INFO/ForkPoolWorker-2] workers.reporting_worker.generate_poc_report[9f5afbe5-6362-4cfd-b476-73a078987f91]: generate_poc_report started | task_id=41c52fe3-fee0-4c60-a024-a24883ad245c
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:07,110: INFO/ForkPoolWorker-4] workers.execution_worker.execute_task[c2feb0e6-c00c-4811-82f3-8ab2511a04f0]: execute_task: engine disposed for task 41c52fe3-fee0-4c60-a024-a24883ad245c
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:07,112: INFO/ForkPoolWorker-4] Task workers.execution_worker.execute_task[c2feb0e6-c00c-4811-82f3-8ab2511a04f0] succeeded in 26.33628508700349s: {'task_id': '41c52fe3-fee0-4c60-a024-a24883ad245c', 'status': 'COMPLETED'}
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:18,785: INFO/ForkPoolWorker-2] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:18,786: INFO/ForkPoolWorker-2] Claude call succeeded | attempt=1 elapsed=11.64s input_tokens=1548 output_tokens=650 model=claude-sonnet-4-6
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:18,796: INFO/ForkPoolWorker-2] workers.reporting_worker.generate_poc_report[9f5afbe5-6362-4cfd-b476-73a078987f91]: generate_poc_report DONE | task=41c52fe3-fee0-4c60-a024-a24883ad245c report=9697c069-0ca4-49b3-8835-3f9074fa0e6c
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:18,799: INFO/ForkPoolWorker-2] workers.reporting_worker.generate_poc_report[9f5afbe5-6362-4cfd-b476-73a078987f91]: generate_poc_report: engine disposed for task 41c52fe3-fee0-4c60-a024-a24883ad245c
+[21:37:32]   celery-worker-1  | [2026-04-21 20:37:18,800: INFO/ForkPoolWorker-2] Task workers.reporting_worker.generate_poc_report[9f5afbe5-6362-4cfd-b476-73a078987f91] succeeded in 11.696859256000607s: {'task_id': '41c52fe3-fee0-4c60-a024-a24883ad245c', 'outcome': 'GENERATED', 'report_id': '9697c069-0ca4-49b3-8835-3f9074fa0e6c'}
+[21:37:32] 
+[21:37:32] STEP 6: DB status after tests
+[21:37:32] >> Final task counts
+[21:37:32]     status   | count 
+[21:37:32]   -----------+-------
+[21:37:32]    COMPLETED |   133
+[21:37:32]    FAILED    |    20
+[21:37:32]   (2 rows)
+[21:37:32]   
+[21:37:32] 
+  status   | count 
+-----------+-------
+ COMPLETED |   133
+ FAILED    |    20
+(2 rows)
+
+[21:37:32] >> Active pipeline
+[21:37:32]    active 
+[21:37:32]   --------
+[21:37:32]         0
+[21:37:32]   (1 row)
+[21:37:32]   
+[21:37:32] 
+ active 
+--------
+      0
+(1 row)
+
+[21:37:32] DONE: Playwright complete. Log: C:\Users\v_sen\Documents\Projects\0001_Hack0014_Vertex_Swarm_Tashi\auditex\runs\ops_playwright_20260421_213251.log
