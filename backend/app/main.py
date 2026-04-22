@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.middleware.rate_limit import RateLimitMiddleware
+from app.api.middleware.logging import JSONLoggingMiddleware
 
 from app.config import settings
 
@@ -57,6 +58,7 @@ app = FastAPI(
 )
 
 # CORS -- development only; tighten in production
+app.add_middleware(JSONLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
