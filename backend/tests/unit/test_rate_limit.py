@@ -17,8 +17,9 @@ from app.api.middleware.rate_limit import (
 
 def _make_request(api_key: str | None = None, client_host: str | None = "1.2.3.4", path: str = "/api/v1/tasks"):
     req = MagicMock()
-    req.headers = {"X-API-Key": api_key} if api_key else {}
-    req.headers.get = lambda k, default=None: (api_key if (k == "X-API-Key" and api_key) else default)
+    headers = MagicMock()
+    req.headers = headers
+    headers.get = lambda k, default=None: (api_key if (k == "X-API-Key" and api_key) else default)
     if client_host is None:
         req.client = None
     else:
