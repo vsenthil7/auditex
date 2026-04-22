@@ -1,80 +1,77 @@
-"""Auditex -- Minimal schema validator (Phase 11 Item 10).
+"""Auditex -- Schema validator (Phase 12: backed by jsonschema==4.23.0).
 
-Tiny JSONSchema-subset validator with zero external dependencies. Supports
-only what Auditex agent payloads need:
-  - type: object, array, string, integer, number, boolean, null
-  - required: list of keys
-  - properties: dict mapping key -> sub-schema
-  - items: sub-schema for array elements
-  - enum: list of allowed values
-  - minLength / maxLength for strings
-Returns (ok: bool, errors: list[str]).
+Thin wrapper around ``jsonschema.Draft202012Validator`` that preserves the
+public contract used elsewhere in the codebase::
+
+    validate_payload(schema, payload) -> tuple[bool, list[str]]
+
+Previously this module implemented a tiny home-grown subset of JSONSchema.
+It has been replaced with the market-standard ``jsonschema`` library, which
+is the same library FastAPI / OpenAPI tooling builds on. The public return
+shape is unchanged; error messages now come from ``jsonschema`` but retain
+the same "$.path.to.field: <message>" format.
 """
 from __future__ import annotations
 
 from typing import Any
 
-_TYPE_MAP = {
-    "object": dict,
-    "array": list,
-    "string": str,
-    "integer": int,
-    "number": (int, float),
-    "boolean": bool,
-    "null": type(None),
-}
+from jsonschema import Draft202012Validator
+from jsonschema import SchemaError as _JsonSchemaSchemaError
 
 
 class SchemaError(Exception):
-    """Raised when the schema definition itself is malformed."""
+    """Raised when the schema definition itself is malformed.
+
+    Kept as its own class (rather than a re-export of
+    ``jsonschema.SchemaError``) so existing call-sites that catch
+    ``core.ingestion.schema_validator.SchemaError`` continue to work.
+    """
 
 
-def validate_payload(schema: dict, payload: Any, path: str = "$") -> tuple[bool, list[str]]:
-    """Recursively validate payload against schema. Returns (ok, errors)."""
+def _format_path(path_parts: list[Any]) -> str:
+    """Render a jsonschema error path as our canonical ``$.a.b[0]`` string."""
+    out = "$"
+    for part in path_parts:
+        if isinstance(part, int):
+            out += f"[{part}]"
+        else:
+            out += f".{part}"
+    return out
+
+
+def validate_payload(
+    schema: dict, payload: Any, path: str = "$"
+) -> tuple[bool, list[str]]:
+    """Validate ``payload`` against ``schema``.
+
+    Returns ``(ok, errors)`` where ``ok`` is True iff ``errors`` is empty.
+    Raises :class:`SchemaError` if the schema itself is malformed (not a
+    dict, uses an unknown type keyword, etc).
+
+    The ``path`` parameter is retained for API compatibility with the
+    previous home-grown implementation; it is used as the root prefix of
+    reported error paths.
+    """
     if not isinstance(schema, dict):
         raise SchemaError(f"schema at {path} is not a dict")
+
+    # Validate the schema itself first. This catches malformed schemas
+    # (e.g. {"type": "nonsense"}) with a consistent SchemaError rather
+    # than surfacing them as ordinary payload-validation failures.
+    try:
+        Draft202012Validator.check_schema(schema)
+    except _JsonSchemaSchemaError as exc:
+        raise SchemaError(f"invalid schema at {path}: {exc.message}") from exc
+
+    validator = Draft202012Validator(schema)
     errors: list[str] = []
-
-    # type check
-    t = schema.get("type")
-    if t is not None:
-        if t not in _TYPE_MAP:
-            raise SchemaError(f"unknown type {t} at {path}")
-        # special: integer check must exclude bool (bool is subclass of int in Python)
-        if t == "integer" and isinstance(payload, bool):
-            errors.append(f"{path}: expected integer, got boolean")
-        elif not isinstance(payload, _TYPE_MAP[t]):
-            errors.append(f"{path}: expected {t}, got {type(payload).__name__}")
-            return False, errors
-
-    # enum check
-    if "enum" in schema and payload not in schema["enum"]:
-        errors.append(f"{path}: value {payload!r} not in enum {schema['enum']}")
-
-    # string-specific
-    if isinstance(payload, str):
-        if "minLength" in schema and len(payload) < schema["minLength"]:
-            errors.append(f"{path}: string shorter than minLength {schema['minLength']}")
-        if "maxLength" in schema and len(payload) > schema["maxLength"]:
-            errors.append(f"{path}: string longer than maxLength {schema['maxLength']}")
-
-    # object-specific
-    if isinstance(payload, dict):
-        required = schema.get("required", [])
-        for key in required:
-            if key not in payload:
-                errors.append(f"{path}: missing required key {key!r}")
-        props = schema.get("properties", {})
-        for key, sub_schema in props.items():
-            if key in payload:
-                ok, sub_errs = validate_payload(sub_schema, payload[key], path=f"{path}.{key}")
-                errors.extend(sub_errs)
-
-    # array-specific
-    if isinstance(payload, list) and "items" in schema:
-        item_schema = schema["items"]
-        for i, element in enumerate(payload):
-            ok, sub_errs = validate_payload(item_schema, element, path=f"{path}[{i}]")
-            errors.extend(sub_errs)
+    for err in sorted(validator.iter_errors(payload), key=lambda e: list(e.absolute_path)):
+        loc = _format_path(list(err.absolute_path))
+        # Ensure the root prefix honours the caller-supplied path (for
+        # nested recursive use-cases, the previous implementation prefixed
+        # every error with the caller's ``path`` argument).
+        if path != "$" and loc.startswith("$"):
+            loc = path + loc[1:]
+        errors.append(f"{loc}: {err.message}")
 
     return (len(errors) == 0), errors
