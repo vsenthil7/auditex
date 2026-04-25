@@ -116,6 +116,7 @@ async def test_execute_task_async_bad_payload_routes_to_dlq():
     with patch("db.repositories.task_repo.get_task", AsyncMock(return_value=task)), \
          patch("db.repositories.task_repo.update_task_status", AsyncMock()), \
          patch("db.repositories.event_repo.insert_event", AsyncMock()), \
+         patch("db.repositories.human_oversight_repo.get_policy", AsyncMock(return_value=None)), \
          patch("core.execution.retry_handler.route_to_dlq", AsyncMock()) as m_dlq:
         out = await execution_worker._execute_task_async(
             _make_celery_task_mock(), str(task.id), factory,
@@ -134,6 +135,7 @@ async def test_execute_task_async_happy_path_stub_mode(monkeypatch):
     with patch("db.repositories.task_repo.get_task", AsyncMock(return_value=task)), \
          patch("db.repositories.task_repo.update_task_status", AsyncMock()), \
          patch("db.repositories.event_repo.insert_event", AsyncMock()), \
+         patch("db.repositories.human_oversight_repo.get_policy", AsyncMock(return_value=None)), \
          patch("core.execution.claude_executor.execute_task",
                AsyncMock(return_value=_make_executor_result())), \
          patch("core.review.coordinator.run_review_pipeline",
@@ -162,6 +164,7 @@ async def test_execute_task_async_claude_value_error_retries():
     with patch("db.repositories.task_repo.get_task", AsyncMock(return_value=task)), \
          patch("db.repositories.task_repo.update_task_status", AsyncMock()), \
          patch("db.repositories.event_repo.insert_event", AsyncMock()), \
+         patch("db.repositories.human_oversight_repo.get_policy", AsyncMock(return_value=None)), \
          patch("core.execution.claude_executor.execute_task",
                AsyncMock(side_effect=ValueError("bad json"))), \
          patch("core.execution.retry_handler.exponential_backoff", AsyncMock()):
@@ -179,6 +182,7 @@ async def test_execute_task_async_claude_fails_max_retries():
     with patch("db.repositories.task_repo.get_task", AsyncMock(return_value=task)), \
          patch("db.repositories.task_repo.update_task_status", AsyncMock()), \
          patch("db.repositories.event_repo.insert_event", AsyncMock()), \
+         patch("db.repositories.human_oversight_repo.get_policy", AsyncMock(return_value=None)), \
          patch("core.execution.claude_executor.execute_task",
                AsyncMock(side_effect=ValueError("bad json"))), \
          patch("core.execution.retry_handler.route_to_dlq", AsyncMock()) as m_dlq:
@@ -196,6 +200,7 @@ async def test_execute_task_async_unexpected_exception_dlq():
     with patch("db.repositories.task_repo.get_task", AsyncMock(return_value=task)), \
          patch("db.repositories.task_repo.update_task_status", AsyncMock()), \
          patch("db.repositories.event_repo.insert_event", AsyncMock()), \
+         patch("db.repositories.human_oversight_repo.get_policy", AsyncMock(return_value=None)), \
          patch("core.execution.claude_executor.execute_task",
                AsyncMock(side_effect=RuntimeError("kaboom"))), \
          patch("core.execution.retry_handler.route_to_dlq", AsyncMock()) as m_dlq:
@@ -216,6 +221,7 @@ async def test_execute_task_async_security_violation():
     with patch("db.repositories.task_repo.get_task", AsyncMock(return_value=task)), \
          patch("db.repositories.task_repo.update_task_status", AsyncMock()), \
          patch("db.repositories.event_repo.insert_event", AsyncMock()), \
+         patch("db.repositories.human_oversight_repo.get_policy", AsyncMock(return_value=None)), \
          patch("core.execution.claude_executor.execute_task",
                AsyncMock(return_value=_make_executor_result())), \
          patch("core.review.coordinator.run_review_pipeline",
@@ -237,6 +243,7 @@ async def test_execute_task_async_review_pipeline_exception():
     with patch("db.repositories.task_repo.get_task", AsyncMock(return_value=task)), \
          patch("db.repositories.task_repo.update_task_status", AsyncMock()), \
          patch("db.repositories.event_repo.insert_event", AsyncMock()), \
+         patch("db.repositories.human_oversight_repo.get_policy", AsyncMock(return_value=None)), \
          patch("core.execution.claude_executor.execute_task",
                AsyncMock(return_value=_make_executor_result())), \
          patch("core.review.coordinator.run_review_pipeline",
@@ -259,6 +266,7 @@ async def test_execute_task_async_consensus_error_continues(monkeypatch):
     with patch("db.repositories.task_repo.get_task", AsyncMock(return_value=task)), \
          patch("db.repositories.task_repo.update_task_status", AsyncMock()), \
          patch("db.repositories.event_repo.insert_event", AsyncMock()), \
+         patch("db.repositories.human_oversight_repo.get_policy", AsyncMock(return_value=None)), \
          patch("core.execution.claude_executor.execute_task",
                AsyncMock(return_value=_make_executor_result())), \
          patch("core.review.coordinator.run_review_pipeline",
@@ -285,6 +293,7 @@ async def test_execute_task_async_reporting_dispatch_fails(monkeypatch):
     with patch("db.repositories.task_repo.get_task", AsyncMock(return_value=task)), \
          patch("db.repositories.task_repo.update_task_status", AsyncMock()), \
          patch("db.repositories.event_repo.insert_event", AsyncMock()), \
+         patch("db.repositories.human_oversight_repo.get_policy", AsyncMock(return_value=None)), \
          patch("core.execution.claude_executor.execute_task",
                AsyncMock(return_value=_make_executor_result())), \
          patch("core.review.coordinator.run_review_pipeline",
