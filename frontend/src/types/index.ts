@@ -5,6 +5,7 @@ export type TaskStatus =
   | 'FINALISING'
   | 'COMPLETED'
   | 'FAILED'
+  | 'AWAITING_HUMAN_REVIEW'
   | 'ESCALATED'
 
 // API returns these field names — matches backend TaskResponse exactly
@@ -122,4 +123,21 @@ export interface VerifyResult {
   event_count: number
   reason: string | null
   checks: VerifyCheck[]
+}
+
+
+// Article 14 Human Oversight
+export interface HumanOversightPolicy {
+  task_type: string
+  required: boolean
+  n_required: number
+  m_total: number
+  timeout_minutes: number | null
+  auto_commit_on_timeout: boolean
+}
+
+export interface HumanDecisionRequest {
+  decision: 'APPROVE' | 'REJECT' | 'REQUEST_AMENDMENTS'
+  reason: string
+  reviewed_by: string
 }

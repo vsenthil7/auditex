@@ -6,6 +6,7 @@ import type {
   EuAiActExport,
   SignedReportEnvelope,
   VerifyResult,
+  HumanOversightPolicy,
 } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -164,4 +165,33 @@ export async function signReport(taskId: string): Promise<SignedReportEnvelope> 
 
 export async function verifyProof(taskId: string): Promise<VerifyResult> {
   return request<VerifyResult>(`/api/v1/events/${taskId}/verify`)
+}
+
+
+// ==========================================================
+// Human Review (Article 14) - HIL endpoints
+// ==========================================================
+
+export async function listHumanReviewQueue(): Promise<Task[]> {
+  const r = await request<{ tasks: Task[]; total: number }>('/api/v1/human-review/queue')
+  return r.tasks ?? []
+}
+
+export async function submitHumanDecision(taskId: string, body: { decision: 'APPROVE' | 'REJECT' | 'REQUEST_AMENDMENTS'; reason: string; reviewed_by: string }): Promise<unknown> {
+  return request(`/api/v1/tasks/${taskId}/human-decision`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getOversightPolicies(): Promise<HumanOversightPolicy[]> {
+  const r = await request<{ policies: HumanOversightPolicy[] }>('/api/v1/human-oversight-policies')
+  return r.policies ?? []
+}
+
+export async function updateOversightPolicy(taskType: string, body: unknown): Promise<unknown> {
+  return request(`/api/v1/human-oversight-policies/${taskType}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
 }

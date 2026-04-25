@@ -1,4 +1,5 @@
-
+p = r"C:/Users/v_sen/Documents/Projects/0001_Hack0014_Vertex_Swarm_Tashi/auditex/frontend/src/App.tsx"
+src = """
 import { useEffect, useState } from 'react'
 import { useTaskStore } from './store/taskStore'
 import { SubmitTaskForm } from './components/SubmitTaskForm'
@@ -56,3 +57,6 @@ export default function App() {
     </div>
   )
 }
+"""
+open(p, 'w', encoding='utf-8').write(src)
+print('wrote', p, len(src), 'bytes')
