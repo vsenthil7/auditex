@@ -21,3 +21,21 @@ docker-compose.override.yml
 .DS_Store
 Thumbs.db
 _patch.tmp
+
+# Demo videos (large binaries; git is for code, demo/_backup is for video history)
+demo/*.webm
+demo/*.mp4
+
+# Playwright test artifacts and reports
+frontend/test-results/
+frontend/tests/results/
+frontend/playwright-report/
+
+# Ephemeral demo helper scripts (see commit history for the keepers)
+scripts/patch_e2e_v*.py
+scripts/patch_demo.py
+scripts/patch_shutter.py
+scripts/fix_demo.py
+scripts/gen_demo.py
+scripts/write_demo.py
+scripts/write_demo_spec.py

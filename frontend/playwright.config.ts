@@ -11,8 +11,10 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     headless: false,
-    viewport: { width: 1280, height: 800 },
-    video: 'retain-on-failure',
+    // Demo-mode toggles (set DEMO=1 env to slow + record; otherwise normal CI run)
+    viewport: process.env.DEMO === '1' ? { width: 1440, height: 900 } : { width: 1280, height: 800 },
+    video: process.env.DEMO === '1' ? 'on' : 'retain-on-failure',
+    launchOptions: process.env.DEMO === '1' ? { slowMo: 800 } : {},
     screenshot: 'only-on-failure',
     // No actionTimeout — let waitForTimeout in while-loop run freely
   },
