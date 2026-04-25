@@ -69,8 +69,15 @@ test.describe('Demo structural review (Option A)', () => {
       const stepTwoSection = detail.locator('text=/Model/i').first()
       await expect(stepTwoSection).toBeVisible({ timeout: 30000 })
 
-      // Gate 7: review panel shows 3 reviewers
-      const reviewerRows = detail.locator('text=/Reviewer\\\\s+[123]/i')
+      // Gate 7: review panel shows 3 reviewers (expand all 5 step accordions first)
+      const allSteps = detail.locator('button', { hasText: /^Step [1-5]/ })
+      const stepCount = await allSteps.count()
+      for (let s = 0; s < Math.min(stepCount, 5); s++) {
+        await allSteps.nth(s).scrollIntoViewIfNeeded()
+        await allSteps.nth(s).click()
+        await page.waitForTimeout(300)
+      }
+      const reviewerRows = detail.locator('text=/Reviewer\\s+[123]/i')
       await expect(reviewerRows).toHaveCount(3, { timeout: 30000 })
 
       // Gate 8: vertex consensus event hash present

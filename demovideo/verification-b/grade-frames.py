@@ -29,8 +29,22 @@ RUBRIC = [
 ]
 
 def ocr_text(frame_path):
+    # Two-pass OCR: original + auto-inverted (for dark-background captions).
+    # Concatenate both reads so we get text from form areas AND caption overlays.
     try:
-        return pytesseract.image_to_string(Image.open(frame_path))
+        from PIL import ImageOps
+        img = Image.open(frame_path).convert('RGB')
+        text_normal = pytesseract.image_to_string(img)
+        # Heuristic: if image has dark mean (caption overlay) invert before OCR
+        gray = img.convert('L')
+        mean = sum(gray.getdata()) / (gray.width * gray.height)
+        if mean < 100:
+            inverted = ImageOps.invert(gray)
+            text_inverted = pytesseract.image_to_string(inverted)
+            return text_normal + "\\n" + text_inverted
+        # Also try inverted on every frame anyway as fallback
+        text_inverted = pytesseract.image_to_string(ImageOps.invert(gray))
+        return text_normal + "\\n" + text_inverted
     except Exception as e:
         return ""
 

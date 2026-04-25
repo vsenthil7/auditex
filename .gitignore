@@ -48,3 +48,14 @@ demovideo/results/verification-b/frames/
 
 # demovideo pipeline outputs (folder structure committed via .gitkeep, output files ignored)
 !demovideo/results/**/.gitkeep
+
+# demovideo generated outputs (regenerate via .\demovideo\run.ps1; .gitkeep preserves structure)
+demovideo/results/**/*.log
+demovideo/results/**/*.json
+demovideo/results/**/*.txt
+demovideo/results/**/latest*
+demovideo/results/verification-b/frames/
+
+# scripts/inspect_*.py - one-off diagnostic helpers
+scripts/inspect_*.py
+frontend/tests/demo/structural-review.spec.ts  # auto-copied from demovideo/verification-a/
