@@ -1,4 +1,4 @@
-﻿# CSR — Page 002 — Auditex Demo Video Refresh (via DemoForge)
+﻿# session prompt — Page 002 — Auditex Demo Video Refresh (via DemoForge)
 
 **Created:** 2026-04-25 20:17 BST (end of Page-001)
 **Project:** Auditex — EU AI Act compliance platform (target of the video)
@@ -30,7 +30,7 @@ Tomorrows Auditex video is **Customer #1 of DemoForge**.
 
 DemoForge is target-agnostic. To make the Auditex video, DemoForge points itself at the running Auditex stack at localhost:8000 + localhost:3000.
 
-**Do NOT modify Auditex code as part of this CSR.** Only the video assets land in auditex/demo/.
+**Do NOT modify Auditex code as part of this prompt.** Only the video assets land in auditex/demo/.
 
 **DemoForge code MAY be modified** to add HIL coverage to its specs.
 
@@ -207,5 +207,5 @@ When Page-002 finishes:
 - DemoForge has new commits for HIL spec + extended verifiers
 - DoraHacks BUIDL #43345 has video link attached (USER action)
 - Optional: DemoForge pushed to GitHub at vsenthil7/demoforge
-- Write pages/Page-003-{name}/CSR.md only if a followup is needed.
-- Otherwise the next CSR is the deferred enterprise one already at pages/PageN-EP1-Multi-Tenancy/CSR.md.
+- Write pages/Page-003-{name}/session_prompt.md only if a followup is needed.
+- Otherwise the next session prompt is the deferred enterprise one already at pages/PageN-EP1-Multi-Tenancy/session_prompt.md.
