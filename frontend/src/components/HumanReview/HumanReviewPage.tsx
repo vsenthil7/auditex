@@ -85,6 +85,7 @@ export function HumanReviewPage() {
 
       <div className='bg-white rounded-lg border border-gray-200 p-6'>
         <h2 className='text-lg font-semibold text-gray-800 mb-4'>Decision Form</h2>
+        {feedback && !selectedTask && <p data-testid='decision-feedback' className='mb-3 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-800'>{feedback}</p>}
         {!selectedTask ? (
           <p className='text-sm text-gray-500'>Select a task from the queue to record your decision.</p>
         ) : (
