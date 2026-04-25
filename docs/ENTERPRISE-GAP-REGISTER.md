@@ -2,7 +2,7 @@
 
 Honest, ongoing catalogue of every gap between what is shipped and what a Fortune 500 CISO would sign a purchase order for. This document is authored in sprint mode, so we can correct debt as we accumulate it rather than discovering it during a customer RFP.
 
-**Last updated:** 2026-04-22
+**Last updated:** 2026-04-25 (Gap 3 RESOLVED - Article 14 human-in-the-loop shipped)
 **Current stage:** hackathon PoC (DoraHacks BUIDL #43345)
 **Target stage:** enterprise-ready EU AI Act compliance platform
 **Scope:** gaps only. Wins are documented in `PROJECT_STATUS.md`.
@@ -51,7 +51,7 @@ Estimates of effort and cost are deliberately omitted. Priority is dictated by s
 
 ## Gap 3 - No human-in-the-loop, violating EU AI Act Article 14
 
-**Severity:** BLOCKER
+**Severity:** RESOLVED (was BLOCKER) - Article 14 human-in-the-loop shipped 25 April 2026 via HIL-1 through HIL-15.
 
 **What shipped:** A fully automated pipeline. Executor LLM + 3 reviewer LLMs + Vertex consensus. No human review step. No handoff UI. No ability to pause a task for a named human reviewer. No audit trail of who the human reviewer was.
 
@@ -60,6 +60,8 @@ Estimates of effort and cost are deliberately omitted. Priority is dictated by s
 **Why it matters:** The product sells EU AI Act compliance but cannot sell itself to anyone using it for high-risk decisions until Article 14 is covered. Any sharp compliance officer catches this on the first 15-minute demo call.
 
 **Disclosed to customers as:** not yet. Must be addressed in both product and pitch before Article 14 comes up in any demo.
+
+**Resolution (25 April 2026):** Shipped end-to-end across 11 commits (9fb612f -> 6a9c10e). Backend: new TaskStatus AWAITING_HUMAN_REVIEW; alembic 0005 introducing human_oversight_policies (per-task-type config: required, n_required, m_total, timeout_minutes, auto_commit_on_timeout) and human_decisions (immutable per-reviewer rows: decision in APPROVE/REJECT/REQUEST_AMENDMENTS, reason, reviewed_by, decided_at); pure-function policy logic in core/review/oversight_policy.py with N-of-M quorum + timeout + REJECT-overrides-all rule (16 unit tests, 100%% line coverage); execution_worker.py gate after LLM consensus (loads policy, sets AWAITING_HUMAN_REVIEW, emits task_awaiting_human_review audit event, defers Vertex submit); 4 API endpoints (GET /human-review/queue, POST /tasks/{id}/human-decision with 404+409 validation, GET /human-oversight-policies, PUT /human-oversight-policies/{task_type} with n>=1 + m>=n validation); HIL-8 finalise_after_human_review Celery task that reconstructs review_result, loads human_decisions, builds task_completed event with human_decisions_hash for tamper-evidence (schema_version 1.1), submits to FoxMQ + Vertex, marks COMPLETED. Frontend: 3-tab nav, HumanReviewPage with auto-refreshing queue + decision form (APPROVE/REJECT/REQUEST_AMENDMENTS color-coded, reviewer name + reason validated), OversightConfigPage with editable per-task-type table (dirty-row highlighting, validation, reload, recently-saved indicator). Tests: 16 policy unit tests, 11 integration tests for the 4 endpoints + worker gate, 3 Playwright E2E (tab nav, config round-trip, full Article 14 flow submit -> AWAITING -> APPROVE via UI -> COMPLETED). All 565 backend tests pass. Live E2E confirmed: contract_check task at hash 4723d400 finalised with human_decisions_count=1 in the audit chain. **Customer-facing claim:** Auditex now provides Article 14 human oversight via configurable N-of-M decision quorum per task type, immutable per-reviewer audit rows tied into the Vertex tamper-evident chain, and an admin UI for policy configuration. Default policies seeded by migration: contract_check 1/1 wait-forever, risk_analysis 2/3 wait-forever, document_review 1/1 with 24h auto-commit fallback. Asymmetric crypto signing of human verdicts (Gap 1) remains open and is the next blocker.
 
 ---
 
