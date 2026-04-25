@@ -69,7 +69,7 @@ async def record_human_decision(task_id: uuid.UUID, body: HumanDecisionRequest, 
     policy_row = await human_oversight_repo.get_policy(session, task_type=task.task_type)
     if policy_row is None:
         await session.commit()
-        return HumanDecisionResponse(task_id=task_id, decision=body.decision, reviewed_by=body.reviewed_by, decided_at=decided_at, quorum_reached=False, n_collected=1, n_required=1, m_total=1, consensus=None, task_status=task.status)
+        return HumanDecisionResponse(task_id=task_id, decision=body.decision, reviewed_by=body.reviewed_by, decided_at=decided_at, quorum_reached=False, decisions_collected=1, n_required=1, m_total=1, finalised=False)
     policy = OversightPolicy(task_type=policy_row.task_type, required=bool(policy_row.required), n_required=int(policy_row.n_required), m_total=int(policy_row.m_total), timeout_minutes=policy_row.timeout_minutes, auto_commit_on_timeout=bool(policy_row.auto_commit_on_timeout))
     decisions = await human_oversight_repo.list_decisions_for_task(session, task_id=task_id)
     quorum_input = [OversightDecision(decision=d.decision, reviewed_by=d.reviewed_by, decided_at=d.decided_at) for d in decisions]
@@ -87,7 +87,7 @@ async def record_human_decision(task_id: uuid.UUID, body: HumanDecisionRequest, 
         except Exception as exc:
             logger.error("human-decision: failed to dispatch finalisation | task=%s: %s", task_id, exc)
     await session.commit()
-    return HumanDecisionResponse(task_id=task_id, decision=body.decision, reviewed_by=body.reviewed_by, decided_at=decided_at, quorum_reached=quorum.reached, n_collected=quorum.collected, n_required=quorum.n_required, m_total=quorum.m_total, consensus=quorum.consensus, task_status=new_status)
+    return HumanDecisionResponse(task_id=task_id, decision=body.decision, reviewed_by=body.reviewed_by, decided_at=decided_at, quorum_reached=quorum.reached, decisions_collected=quorum.collected, n_required=quorum.n_required, m_total=quorum.m_total, finalised=quorum.reached)
 
 @router.get("/human-oversight-policies", response_model=HumanOversightPolicyListResponse, dependencies=[Depends(require_api_key)])
 async def list_human_oversight_policies(session=Depends(get_db_session)):
