@@ -14,6 +14,7 @@ $backupDir = Join-Path $demoDir '_backup'
 $resultsDir = Join-Path (Split-Path -Parent $here) 'results\creation'
 $resultsDir = Join-Path (Split-Path -Parent $here) 'results\creation'
 $resultsDir = Join-Path (Split-Path -Parent $here) 'results\creation'
+$resultsDir = Join-Path (Split-Path -Parent $here) 'results\creation'
 $specPath = 'tests/demo/end-to-end-demo.spec.ts'
 
 Write-Host '' -ForegroundColor Yellow
@@ -49,6 +50,7 @@ try {
 Write-Host '[creation] 4/5 archiving video to demo/ + demo/_backup/' -ForegroundColor Cyan
 New-Item -Path $demoDir -ItemType Directory -Force | Out-Null
 New-Item -Path $backupDir -ItemType Directory -Force | Out-Null
+New-Item -Path $resultsDir -ItemType Directory -Force | Out-Null
 $src = Get-ChildItem (Join-Path $frontendDir 'test-results') -Recurse -Filter 'video.webm' | Where-Object { $_.FullName -match 'end-to-end' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $src) { Write-Host '[creation] no recorded video found - did the spec run?' -ForegroundColor Red; exit 1 }
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
@@ -57,6 +59,8 @@ $dstMain = Join-Path $demoDir $dstName
 $dstBackup = Join-Path $backupDir $dstName
 Copy-Item $src.FullName $dstMain -Force
 Copy-Item $src.FullName $dstBackup -Force
+# Write a pointer to latest active video for verify-a/b to pick up
+Set-Content -Path (Join-Path $resultsDir 'latest.txt') -Value $dstMain -Encoding ASCII
 Write-Host (' active : ' + $dstMain)
 Write-Host (' backup : ' + $dstBackup)
 Write-Host (' size  : ' + [math]::Round($src.Length/1MB, 2) + ' MB')

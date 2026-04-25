@@ -37,21 +37,21 @@ function Show-Menu {
 
 function Invoke-Action([string]$a) {
     switch ($a) {
-        '1'       { & '$here\creation\run-creation.ps1' }
-        'create' { & '$here\creation\run-creation.ps1' }
-        '2'       { & '$here\verification-a\run-verify-a.ps1' }
-        'verify-a' { & '$here\verification-a\run-verify-a.ps1' }
-        '3'       { & '$here\verification-b\run-verify-b.ps1' }
-        'verify-b' { & '$here\verification-b\run-verify-b.ps1' }
+        '1'       { & "$here\creation\run-creation.ps1" }
+        'create' { & "$here\creation\run-creation.ps1" }
+        '2'       { & "$here\verification-a\run-verify-a.ps1" }
+        'verify-a' { & "$here\verification-a\run-verify-a.ps1" }
+        '3'       { & "$here\verification-b\run-verify-b.ps1" }
+        'verify-b' { & "$here\verification-b\run-verify-b.ps1" }
         '4' {
-            & '$here\creation\run-creation.ps1'
-            & '$here\verification-a\run-verify-a.ps1'
-            & '$here\verification-b\run-verify-b.ps1'
+            & "$here\creation\run-creation.ps1"
+            & "$here\verification-a\run-verify-a.ps1"
+            & "$here\verification-b\run-verify-b.ps1"
         }
         'all' {
-            & '$here\creation\run-creation.ps1'
-            & '$here\verification-a\run-verify-a.ps1'
-            & '$here\verification-b\run-verify-b.ps1'
+            & "$here\creation\run-creation.ps1"
+            & "$here\verification-a\run-verify-a.ps1"
+            & "$here\verification-b\run-verify-b.ps1"
         }
         default { Write-Host ('Unknown action: ' + $a) -ForegroundColor Red; exit 1 }
     }

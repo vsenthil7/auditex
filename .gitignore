@@ -45,3 +45,6 @@ demovideo/results/**/*.log
 demovideo/results/**/*.txt
 demovideo/results/**/*.json
 demovideo/results/verification-b/frames/
+
+# demovideo pipeline outputs (folder structure committed via .gitkeep, output files ignored)
+!demovideo/results/**/.gitkeep
