@@ -1,4 +1,4 @@
-"""add human_oversight_policies + human_decisions tables (Article 14 HIL)
+﻿"""add human_oversight_policies + human_decisions tables (Article 14 HIL)
 
 Revision ID: 0005
 Revises: 0004
@@ -21,7 +21,7 @@ def upgrade() -> None:
         'human_oversight_policies',
         sa.Column('task_type', sa.String(100), primary_key=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+        
         sa.Column('required', sa.Boolean(), nullable=False, server_default=sa.text('true')),
         sa.Column('n_required', sa.Integer(), nullable=False, server_default='1'),
         sa.Column('m_total', sa.Integer(), nullable=False, server_default='1'),
@@ -35,7 +35,7 @@ def upgrade() -> None:
         'human_decisions',
         sa.Column('id', UUID(as_uuid=True), primary_key=True, nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+        
         sa.Column('task_id', UUID(as_uuid=True), sa.ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False),
         sa.Column('decision', sa.String(50), nullable=False),
         sa.Column('reason', sa.Text(), nullable=False),
@@ -46,7 +46,7 @@ def upgrade() -> None:
     op.create_index('ix_human_decisions_reviewed_by', 'human_decisions', ['reviewed_by'])
 
     # Seed default policies for the 3 known task types (admin can edit later)
-    op.execute('''INSERT INTO human_oversight_policies (task_type, required, n_required, m_total, timeout_minutes, auto_commit_on_timeout, created_at, updated_at) VALUES ('contract_check', true, 1, 1, NULL, false, now(), now()), ('risk_analysis', true, 2, 3, NULL, false, now(), now()), ('document_review', true, 1, 1, 1440, true, now(), now())''')
+    op.execute('''INSERT INTO human_oversight_policies (task_type, required, n_required, m_total, timeout_minutes, auto_commit_on_timeout, created_at) VALUES ('contract_check', true, 1, 1, NULL, false, now()), ('risk_analysis', true, 2, 3, NULL, false, now()), ('document_review', true, 1, 1, 1440, true, now())''')
 
 
 def downgrade() -> None:
