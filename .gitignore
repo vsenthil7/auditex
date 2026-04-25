@@ -39,3 +39,9 @@ scripts/fix_demo.py
 scripts/gen_demo.py
 scripts/write_demo.py
 scripts/write_demo_spec.py
+
+# Generated demo verification artifacts
+demovideo/results/**/*.log
+demovideo/results/**/*.txt
+demovideo/results/**/*.json
+demovideo/results/verification-b/frames/

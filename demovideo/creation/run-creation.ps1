@@ -11,6 +11,9 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $here)
 $demoDir = Join-Path $projectRoot 'demo'
 $backupDir = Join-Path $demoDir '_backup'
+$resultsDir = Join-Path (Split-Path -Parent $here) 'results\creation'
+$resultsDir = Join-Path (Split-Path -Parent $here) 'results\creation'
+$resultsDir = Join-Path (Split-Path -Parent $here) 'results\creation'
 $specPath = 'tests/demo/end-to-end-demo.spec.ts'
 
 Write-Host '' -ForegroundColor Yellow

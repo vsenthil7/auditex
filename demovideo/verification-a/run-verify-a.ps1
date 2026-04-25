@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $here)
 $frontendDir = Join-Path $projectRoot 'frontend'
-$reportDir = Join-Path $here 'reports'
+$reportDir = Join-Path (Split-Path -Parent $here) 'results\verification-a'
 New-Item -Path $reportDir -ItemType Directory -Force | Out-Null
 
 # Copy spec into the project tests folder so playwright picks it up via the project config.

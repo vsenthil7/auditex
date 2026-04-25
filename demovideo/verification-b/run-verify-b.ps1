@@ -9,8 +9,8 @@ $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $here)
 $demoDir = Join-Path $projectRoot 'demo'
-$reportDir = Join-Path $here 'reports'
-$framesDir = Join-Path $here 'frames'
+$reportDir = Join-Path (Split-Path -Parent $here) 'results\verification-b'
+$framesDir = Join-Path (Split-Path -Parent $here) 'results\verification-b\frames'
 New-Item -Path $reportDir -ItemType Directory -Force | Out-Null
 
 Write-Host '' -ForegroundColor Yellow
