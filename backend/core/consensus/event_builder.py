@@ -31,6 +31,7 @@ def build_task_completed_event(
     task_type: str,
     executor_output: dict,
     review_result: Any,
+    human_decisions: list[dict] | None = None,
 ) -> dict:
     """
     Build the canonical FoxMQ/Vertex event payload for a completed task.
@@ -111,5 +112,10 @@ def build_task_completed_event(
         "all_commitments_verified": review_result.all_verified,
         "submitted_at": submitted_at,
     }
+
+    if human_decisions is not None:
+        payload["schema_version"] = "1.1"
+        payload["human_decisions"] = list(human_decisions)
+        payload["human_decisions_hash"] = _sha256_of_json(human_decisions)
 
     return payload

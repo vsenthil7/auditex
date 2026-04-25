@@ -76,10 +76,16 @@ async def record_human_decision(task_id: uuid.UUID, body: HumanDecisionRequest, 
     quorum = evaluate_quorum(quorum_input, policy)
     new_status = task.status
     if quorum.reached:
-        # Mark task ready for finalisation; HIL-8 will re-trigger Vertex submission via the worker
+        # HIL-8: flip to FINALISING + dispatch Celery task to do Vertex submit + COMPLETED
         new_status = "FINALISING"
         await task_repo.update_task_status(session, task_id=task_id, status=new_status)
         await event_repo.insert_event(session, task_id=task_id, event_type="human_quorum_reached", payload={"consensus": quorum.consensus, "collected": quorum.collected, "n_required": quorum.n_required, "m_total": quorum.m_total})
+        try:
+            from workers.execution_worker import finalise_after_human_review
+            finalise_after_human_review.delay(str(task_id))
+            logger.info("human-decision: dispatched finalise_after_human_review | task=%s", task_id)
+        except Exception as exc:
+            logger.error("human-decision: failed to dispatch finalisation | task=%s: %s", task_id, exc)
     await session.commit()
     return HumanDecisionResponse(task_id=task_id, decision=body.decision, reviewed_by=body.reviewed_by, decided_at=decided_at, quorum_reached=quorum.reached, n_collected=quorum.collected, n_required=quorum.n_required, m_total=quorum.m_total, consensus=quorum.consensus, task_status=new_status)
 

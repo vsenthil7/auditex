@@ -264,3 +264,138 @@ async def _execute_task_async(celery_task, task_id_str: str, AsyncSessionLocal) 
             logger.error("execute_task: failed to dispatch reporting task | task=%s: %s", task_id, exc)
 
         return {"task_id": task_id_str, "status": "COMPLETED"}
+
+
+# ============================================================
+# HIL-8: Finalisation Celery task triggered after human quorum
+# ============================================================
+
+@celery_app.task(
+    name="auditex.workers.finalise_after_human_review",
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
+def finalise_after_human_review(self, task_id_str: str) -> dict:
+    """Run Vertex submit + mark COMPLETED for a task that just reached human quorum.
+    Triggered from app.api.v1.human_review.record_human_decision when quorum hits.
+    Idempotent: if task already has a vertex_event_hash, returns without re-submitting.
+    """
+    engine, factory = _make_engine_and_session()
+    try:
+        return asyncio.run(_finalise_after_human_review_async(task_id_str, factory))
+    finally:
+        asyncio.run(engine.dispose())
+
+
+async def _finalise_after_human_review_async(task_id_str: str, session_factory) -> dict:
+    """Async core for finalise_after_human_review.
+    Pure refactor: re-runs Vertex submit + COMPLETED + reporting dispatch using
+    the persisted executor_output_json and review_result_json from the task row,
+    plus the human_decisions table for the audit chain.
+    """
+    from types import SimpleNamespace
+    from db.repositories import event_repo, task_repo, human_oversight_repo
+    from core.consensus.event_builder import build_task_completed_event
+    from core.consensus.foxmq_client import publish_event as foxmq_publish
+    from core.consensus.vertex_client import submit_event as vertex_submit
+
+    task_id = uuid.UUID(task_id_str)
+    async with session_factory() as session:
+        task = await task_repo.get_task(session, task_id=task_id)
+        if task is None:
+            logger.warning("finalise_after_human_review: task %s not found", task_id)
+            return {"task_id": task_id_str, "status": "NOT_FOUND"}
+        if task.status != "FINALISING":
+            logger.info("finalise_after_human_review: task %s in status %s, skipping", task_id, task.status)
+            return {"task_id": task_id_str, "status": task.status}
+        if task.vertex_event_hash:
+            logger.info("finalise_after_human_review: task %s already has vertex hash, idempotent skip", task_id)
+            return {"task_id": task_id_str, "status": task.status}
+
+        # Reconstruct executor_output and review_result-like object from persisted JSON
+        executor_blob = json.loads(task.executor_output_json or "{}")
+        executor_output = executor_blob.get("output", executor_blob)
+        review_blob = json.loads(task.review_result_json or "{}")
+        reviewers_data = review_blob.get("reviewers", [])
+        reviewer_objs = [SimpleNamespace(
+            model=r.get("model"),
+            verdict=r.get("verdict"),
+            committed_hash=r.get("committed_hash"),
+        ) for r in reviewers_data]
+        review_result_obj = SimpleNamespace(
+            consensus=task.consensus_result,
+            all_verified=review_blob.get("all_verified", True),
+            reviewers=reviewer_objs,
+            executor_confidence=float(task.executor_confidence) if task.executor_confidence is not None else None,
+        )
+
+        # Load human decisions for the audit chain
+        decision_rows = await human_oversight_repo.list_decisions_for_task(session, task_id=task_id)
+        human_decisions = [{
+            "decision": d.decision,
+            "reviewed_by": d.reviewed_by,
+            "decided_at": d.decided_at.isoformat() if d.decided_at else None,
+        } for d in decision_rows]
+
+        # Submit to FoxMQ + Vertex
+        vertex_stub_mode_local = os.environ.get("USE_REAL_VERTEX", "false").lower() != "true"
+        if vertex_stub_mode_local:
+            await asyncio.sleep(_FINALISING_STUB_SLEEP_SECONDS)
+        vertex_event_hash = None
+        vertex_round = None
+        vertex_finalised_at_dt = None
+        try:
+            event_payload = build_task_completed_event(
+                task_id=task_id_str,
+                task_type=task.task_type,
+                executor_output=executor_output,
+                review_result=review_result_obj,
+                human_decisions=human_decisions,
+            )
+            foxmq_publish(event_payload)
+            receipt = vertex_submit(event_payload)
+            vertex_event_hash = receipt.event_hash
+            vertex_round = receipt.round
+            vertex_finalised_at_dt = datetime.fromisoformat(receipt.finalised_at)
+            logger.info("finalise_after_human_review: Vertex finalised | task=%s hash=%s... round=%d", task_id, receipt.event_hash[:16], receipt.round)
+        except Exception as exc:
+            logger.error("finalise_after_human_review: consensus error (non-blocking) | task=%s: %s", task_id, exc)
+            await event_repo.insert_event(session, task_id=task_id, event_type="consensus_layer_error", payload={"error": str(exc)[:500]})
+
+        # Mark COMPLETED + emit task_completed event with human signature in payload
+        completed_at = datetime.now(timezone.utc)
+        await task_repo.update_task_status(
+            session,
+            task_id=task_id,
+            status="COMPLETED",
+            vertex_event_hash=vertex_event_hash,
+            vertex_round=vertex_round,
+            vertex_finalised_at=vertex_finalised_at_dt,
+            completed_at=completed_at,
+        )
+        await event_repo.insert_event(
+            session,
+            task_id=task_id,
+            event_type="task_completed",
+            payload={
+                "consensus": review_result_obj.consensus,
+                "vertex_round": vertex_round,
+                "vertex_event_hash": vertex_event_hash,
+                "human_decisions_count": len(human_decisions),
+                "human_decisions_summary": [{"decision": d["decision"], "reviewed_by": d["reviewed_by"]} for d in human_decisions],
+            },
+        )
+        await session.commit()
+        logger.info("finalise_after_human_review COMPLETED | task=%s humans=%d", task_id, len(human_decisions))
+
+    # Dispatch reporting (outside the session)
+    try:
+        from workers.reporting_worker import generate_poc_report as celery_report_task
+        celery_report_task.delay(task_id_str)
+        logger.info("finalise_after_human_review: reporting task dispatched | task=%s", task_id)
+    except Exception as exc:
+        logger.error("finalise_after_human_review: failed to dispatch reporting | task=%s: %s", task_id, exc)
+
+    return {"task_id": task_id_str, "status": "COMPLETED"}
