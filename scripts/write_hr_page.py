@@ -1,4 +1,5 @@
-
+p = r"C:/Users/v_sen/Documents/Projects/0001_Hack0014_Vertex_Swarm_Tashi/auditex/frontend/src/components/HumanReview/HumanReviewPage.tsx"
+src = """
 import { useEffect, useState } from 'react'
 import * as api from '../../services/api'
 import type { Task } from '../../types'
@@ -114,3 +115,6 @@ export function HumanReviewPage() {
     </div>
   )
 }
+"""
+open(p, 'w', encoding='utf-8').write(src)
+print('wrote HumanReviewPage.tsx:', len(src), 'bytes')
