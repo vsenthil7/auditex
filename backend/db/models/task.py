@@ -30,7 +30,7 @@ class Task(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(
         String(50), nullable=False, default="QUEUED", index=True
     )
-    # QUEUED | EXECUTING | REVIEWING | FINALISING | COMPLETED | FAILED | ESCALATED
+    # QUEUED | EXECUTING | REVIEWING | AWAITING_HUMAN_REVIEW | FINALISING | COMPLETED | FAILED | ESCALATED
 
     # Submission
     submitted_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -98,6 +98,7 @@ class Task(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         "Agent", back_populates="tasks_as_executor", foreign_keys=[executor_agent_id]
     )
     audit_events = relationship("AuditEvent", back_populates="task")
+    human_decisions = relationship("HumanDecision", back_populates="task", cascade="all, delete-orphan")
     report = relationship("Report", back_populates="task", uselist=False)
 
     def __repr__(self) -> str:
