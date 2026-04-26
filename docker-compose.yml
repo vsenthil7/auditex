@@ -16,6 +16,7 @@ services:
       POSTGRES_DB: auditex
       ENVIRONMENT: development
       LOG_LEVEL: INFO
+      RATE_LIMIT_PER_MINUTE: "0"
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       JWT_SECRET: dev_secret
