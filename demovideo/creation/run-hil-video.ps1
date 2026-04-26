@@ -30,11 +30,11 @@ try {
     Write-Host '  containers OK (frontend + api + celery-worker)'
 } finally { Pop-Location }
 
-# 1b) HIL pre-flight: confirm policies seeded so contract_check flips to AWAITING_HUMAN_REVIEW
-Write-Host '[hil-video] 1b) HIL pre-flight: alembic 0005 policies' -ForegroundColor Cyan
-$policyRows = docker exec auditex-postgres-1 psql -U auditex -d auditex -tA -c "SELECT count(*) FROM human_oversight_policies WHERE required = true;"
-if ($policyRows -lt 3) { throw 'HIL policies not seeded; expected 3 required rows, found ' + $policyRows }
-Write-Host ('  policies OK (' + $policyRows.Trim() + ' required rows)')
+# 1b) Sanity-check policies table exists (spec manages required state per scenario)
+Write-Host '[hil-video] 1b) HIL pre-flight: alembic 0005 policies table' -ForegroundColor Cyan
+$policyRows = docker exec auditex-postgres-1 psql -U auditex -d auditex -tA -c "SELECT count(*) FROM human_oversight_policies;"
+if ([int]$policyRows.Trim() -lt 3) { throw 'HIL policies table missing rows; expected 3, found ' + $policyRows }
+Write-Host ('  policies table OK (' + $policyRows.Trim() + ' rows; spec sets required per scenario)')
 
 # 1c) HIL pre-flight: clean stale AWAITING_HUMAN_REVIEW so the demo flow does not pick up an old task
 Write-Host '[hil-video] 1c) HIL pre-flight: clean stale AWAITING_HUMAN_REVIEW tasks' -ForegroundColor Cyan
