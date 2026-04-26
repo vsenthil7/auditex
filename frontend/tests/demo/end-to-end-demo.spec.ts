@@ -141,6 +141,22 @@ test.describe('Auditex End-to-End Captioned Demo', () => {
     await page.goto(BASE)
     await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {})
 
+    // Disable HIL policies for the 3 outcome-path cases (they pre-date Article 14 and expect direct COMPLETED).
+    // We'll re-enable for the HIL block at the end.
+    await page.evaluate(async () => {
+      const headers = { 'Content-Type': 'application/json', 'X-API-Key': 'auditex-test-key-phase2' }
+      for (const taskType of ['contract_check', 'risk_analysis', 'document_review']) {
+        try {
+          const r = await fetch('http://localhost:8000/api/v1/human-oversight-policies/' + taskType, {
+            method: 'PUT', headers,
+            body: JSON.stringify({ task_type: taskType, required: false, n_required: 1, m_total: 1, timeout_minutes: null, auto_commit_on_timeout: false }),
+          })
+          console.log('[demo] disabled policy ' + taskType + ': ' + r.status)
+        } catch (e) { console.log('[demo] failed to disable policy ' + taskType + ': ' + e) }
+      }
+    })
+    await page.waitForTimeout(1000)
+
     await showTitleCard(page, 'Auditex', 'EU AI Act compliance audit pipeline. End-to-end demo: 3 real submissions, 3 outcome paths, no mocking. DoraHacks BUIDL #43345.', 4500)
 
     for (let i = 0; i < CASES.length; i++) {
@@ -296,6 +312,19 @@ test.describe('Auditex End-to-End Captioned Demo', () => {
       holdMs: 5500,
     })
     await hideCaption(page)
+
+    // Re-enable contract_check HIL policy for the H-1..H-12 walkthrough
+    await page.evaluate(async () => {
+      const headers = { 'Content-Type': 'application/json', 'X-API-Key': 'auditex-test-key-phase2' }
+      try {
+        const r = await fetch('http://localhost:8000/api/v1/human-oversight-policies/contract_check', {
+          method: 'PUT', headers,
+          body: JSON.stringify({ task_type: 'contract_check', required: true, n_required: 1, m_total: 1, timeout_minutes: null, auto_commit_on_timeout: false }),
+        })
+        console.log('[demo] re-enabled contract_check policy: ' + r.status)
+      } catch (e) { console.log('[demo] failed to re-enable: ' + e) }
+    })
+    await page.waitForTimeout(1000)
 
     // H-1: Land on dashboard, show 3-tab nav
     await page.goto(BASE)

@@ -8,7 +8,7 @@
 # Usage:
 #   .\demovideo\creation\run-hil-video.ps1
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent (Split-Path -Parent $here)
 $demoDir = Join-Path $projectRoot 'demo'
@@ -23,7 +23,7 @@ Write-Host '[hil-video] === Auditex Demo Video v4 Creation (with HIL Article 14)
 Write-Host '[hil-video] 1/5 pre-flight: docker compose ps' -ForegroundColor Cyan
 Push-Location $projectRoot
 try {
-    $ps = docker compose ps --format '{{.Name}}:{{.Status}}'
+    $ps = & docker compose ps --format '{{.Name}}:{{.Status}}' 2>$null
     if (-not ($ps -match 'auditex-frontend.*Up')) { throw 'frontend container not up - run: docker compose up -d' }
     if (-not ($ps -match 'auditex-api.*Up')) { throw 'api container not up' }
     if (-not ($ps -match 'auditex-celery-worker.*Up')) { throw 'celery-worker container not up - HIL finalise worker required' }
