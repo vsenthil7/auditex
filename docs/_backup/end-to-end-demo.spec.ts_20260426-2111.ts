@@ -422,8 +422,8 @@ This contract is policy-flagged for human review under Article 14.`
     await hilTaskRow.scrollIntoViewIfNeeded()
     await page.waitForTimeout(2500)  // viewer watches QUEUED -> EXECUTING flip
 
-    // H-6: Wait for AWAITING_HUMAN_REVIEW status (StatusBadge displays this enum as 'NEEDS HUMAN')
-    await expect(hilTaskRow).toContainText(/NEEDS.*HUMAN/i, { timeout: 120 * 1000 })
+    // H-6: Wait for AWAITING_HUMAN_REVIEW status (executor finishes, policy flags, status flips)
+    await expect(hilTaskRow).toContainText(/AWAITING.*HUMAN/i, { timeout: 120 * 1000 })
     await page.waitForTimeout(3000)  // viewer reads the amber pulse status
 
     // H-7: Click Human Review tab
