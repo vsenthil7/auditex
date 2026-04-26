@@ -1,13 +1,18 @@
 /**
- * Auditex end-to-end captioned demo - 6-scenario matrix.
- * 3 task types x 2 paths each (no-HIL + HIL).
+ * Auditex end-to-end captioned demo - 6-scenario matrix with Oversight Config visibility.
+ * 3 task types x 2 paths each (no-HIL direct + HIL via human) = 6 scenarios.
  *
- * Fixes vs v2.6:
- *   - Title card paints on about:blank BEFORE app loads (no flicker)
- *   - Step expansion only toggles if collapsed (detected via ▼ arrow in header)
- *   - Articles 9/13/17 opened sequentially (mutually exclusive in UI)
- *   - Step 5 has defaultOpen=true so we don't click it (would close)
- *   - Tighter dwell times throughout
+ * Each scenario:
+ *   1. (For first scenario) shutter stays up until title card paints - no app flicker
+ *   2. Caption (GIVEN/WHEN/THEN/EXPECTED)
+ *   3. Visit Oversight Config tab so viewer sees policy state for the upcoming task type
+ *   4. Back to Dashboard, fill form, submit
+ *   5. Watch through HIL queue if applicable
+ *   6. Detail panel: expand all 5 pipeline steps, dwell on Step 5 with Articles expanded
+ *   7. Vertex sign + verify (the show-runner)
+ *   8. (HIL only) Export EU AI Act JSON to show human_decisions in signed bundle
+ *
+ * Run: cd frontend; npx playwright test tests/demo/end-to-end-demo.spec.ts --headed --project=chromium
  */
 import { test, expect } from '@playwright/test'
 import { showCaption, hideCaption, showTitleCard } from './caption-overlay'
@@ -175,20 +180,12 @@ async function setPolicy(request: any, taskType: string, required: boolean) {
   })
 }
 
-test.describe('Auditex 6-Scenario Demo - v2.7', () => {
-  test('3 task types x 2 paths - title card paints first, sections expand correctly', async ({ page, request }) => {
+test.describe('Auditex 6-Scenario Captioned Demo with Oversight Config', () => {
+  test('3 task types x 2 paths (no-HIL + HIL) - shows policy state + Vertex sign+verify', async ({ page, request }) => {
     test.setTimeout(60 * 60 * 1000)
 
-    // Step 1: navigate to about:blank FIRST and paint the title card there.
-    // The app never gets to flash on screen.
-    await page.goto('about:blank')
-    await page.evaluate(() => {
-      document.body.style.cssText = 'margin:0;padding:0;background:#0f172a;'
-    })
-    await showTitleCard(page, 'Auditex', 'EU AI Act compliance audit pipeline. 6 scenarios: 3 task types x (Auto + Human-in-Loop). Tamper-proof Vertex consensus on every event. DoraHacks BUIDL #43345.', 3500)
-
-    // Step 2: NOW navigate to the real app. Title card overlay was on about:blank, gone now.
-    // Inject a shutter so the app paints behind it invisibly until first scenario caption.
+    // Inject a black shutter that stays up until we explicitly lower it.
+    // Prevents app flicker during navigation/caption transitions.
     await page.addInitScript(() => {
       const id = 'demo-shutter'
       if (document.getElementById(id)) return
@@ -199,11 +196,7 @@ test.describe('Auditex 6-Scenario Demo - v2.7', () => {
       if (body) body.appendChild(s)
       else document.addEventListener('DOMContentLoaded', () => document.body.appendChild(s))
     })
-    await page.goto(BASE)
-    await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {})
-    await page.waitForTimeout(300)
 
-    // Lower shutter so first scenario caption can paint over the app
     async function lowerShutter() {
       await page.evaluate(() => {
         const s = document.getElementById('demo-shutter') as HTMLElement | null
@@ -211,30 +204,26 @@ test.describe('Auditex 6-Scenario Demo - v2.7', () => {
       })
       await page.waitForTimeout(220)
     }
-    await lowerShutter()
 
-    // === Helper: ensure a Step section is OPEN (only click if collapsed) ===
-    // Reads the arrow character (▼ closed, ▲ open) inside the Section button.
-    async function ensureSectionOpen(detail: any, stepIndex: number) {
-      const stepBtns = detail.locator('button', { hasText: /^Step [1-5]/ })
-      const btn = stepBtns.nth(stepIndex)
-      if (!(await btn.isVisible().catch(() => false))) return
-      const text = await btn.textContent().catch(() => '')
-      const isOpen = text?.includes('▲')
-      if (!isOpen) {
-        await btn.scrollIntoViewIfNeeded()
-        await btn.click()
-        await page.waitForTimeout(250)
-      }
-    }
+    // Initial nav - shutter is up so app paints behind it invisibly
+    await page.goto(BASE)
+    await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {})
+    await page.waitForTimeout(300)
+
+    // Title card paints over the shutter immediately (caption overlay z-index higher than shutter)
+    await showTitleCard(page, 'Auditex', 'EU AI Act compliance audit pipeline. 6 scenarios: 3 task types x (Auto + Human-in-Loop). Tamper-proof Vertex consensus on every event. DoraHacks BUIDL #43345.', 4000)
+
+    // Now lower the shutter for first scenario (caption will paint immediately after this)
+    await lowerShutter()
 
     for (let i = 0; i < SCENARIOS.length; i++) {
       const sc = SCENARIOS[i]
 
+      // Pre-set policy state for this scenario
       await setPolicy(request, sc.taskType, sc.hil)
-      await page.waitForTimeout(200)
+      await page.waitForTimeout(250)
 
-      // Caption paints over previous detail (or shutter for first scenario)
+      // Caption paints directly over previous detail (or shutter for first scenario)
       await showCaption(page, {
         scene: sc.scene,
         title: sc.title,
@@ -243,56 +232,59 @@ test.describe('Auditex 6-Scenario Demo - v2.7', () => {
         then: sc.then,
         testData: ['Task type: ' + sc.taskType, 'HIL: ' + (sc.hil ? 'ENABLED (' + sc.hilDecision + ')' : 'disabled'), 'Criteria: ' + sc.criteria.join(', ')],
         expected: sc.expected,
-        holdMs: 2800,
+        holdMs: 3000,
       })
       await hideCaption(page)
 
-      // === Oversight Config visit BEFORE submit ===
+      // === Oversight Config visit BEFORE submit, so viewer sees the policy state ===
       const tabOversight = page.locator('[data-testid="tab-oversight-config"]')
       if (await tabOversight.isVisible().catch(() => false)) {
+        await tabOversight.scrollIntoViewIfNeeded()
         await tabOversight.click()
-        await page.waitForTimeout(450)
+        await page.waitForTimeout(600)
         const policyRow = page.locator(`[data-testid="policy-row-${sc.taskType}"]`)
         if (await policyRow.isVisible().catch(() => false)) {
           await policyRow.scrollIntoViewIfNeeded()
+          // Highlight the row briefly so viewer's eye goes there
           await policyRow.evaluate((el: HTMLElement) => {
             el.style.transition = 'background-color 0.3s'
             el.style.backgroundColor = '#fde68a'
-            setTimeout(() => { el.style.backgroundColor = '' }, 1800)
+            setTimeout(() => { el.style.backgroundColor = '' }, 2000)
           })
-          await page.waitForTimeout(1800)
+          await page.waitForTimeout(2200)  // viewer reads required: ON/OFF
         }
+        // Back to dashboard for submission
         const tabDash = page.locator('[data-testid="tab-dashboard"]')
         await tabDash.click()
-        await page.waitForTimeout(350)
+        await page.waitForTimeout(400)
       }
 
       // === Form fill ===
       const formHeading = page.getByRole('heading', { name: /Submit New Task/i })
       await formHeading.scrollIntoViewIfNeeded()
-      await page.waitForTimeout(150)
+      await page.waitForTimeout(200)
       const taskSelect = page.locator('select')
       await taskSelect.scrollIntoViewIfNeeded()
       await taskSelect.selectOption(sc.taskType)
-      await page.waitForTimeout(250)
+      await page.waitForTimeout(300)
 
       const textarea = page.locator('textarea')
       await textarea.scrollIntoViewIfNeeded()
       await textarea.click()
       await page.keyboard.press('Control+A')
       await page.keyboard.press('Delete')
-      await textarea.type(sc.document, { delay: 1 })
-      await page.waitForTimeout(150)
+      await textarea.type(sc.document, { delay: 2 })
+      await page.waitForTimeout(200)
 
       for (const label of sc.criteria) {
         const cb = page.locator(`label:has-text("${label}") input[type="checkbox"]`)
         await cb.scrollIntoViewIfNeeded()
         if (!(await cb.isChecked().catch(() => false))) {
           await cb.check({ force: true })
-          await page.waitForTimeout(120)
+          await page.waitForTimeout(150)
         }
       }
-      await page.waitForTimeout(150)
+      await page.waitForTimeout(200)
 
       const submitBtn = page.getByRole('button', { name: /^Submit Task$/i })
       await submitBtn.scrollIntoViewIfNeeded()
@@ -303,58 +295,59 @@ test.describe('Auditex 6-Scenario Demo - v2.7', () => {
       const newTaskId = respJson.task_id as string
       const idPrefix = newTaskId.slice(0, 8)
       console.log('[demo] ' + sc.scene + ' submitted: ' + newTaskId + ' (' + sc.taskType + ', hil=' + sc.hil + ')')
-      await page.waitForTimeout(400)
+      await page.waitForTimeout(500)
 
       const myTaskRow = page.locator('button.w-full.text-left').filter({ hasText: idPrefix })
       await expect(myTaskRow).toBeVisible({ timeout: 15000 })
       await myTaskRow.scrollIntoViewIfNeeded()
-      await page.waitForTimeout(250)
+      await page.waitForTimeout(300)
 
       if (sc.hil) {
+        // HIL path
         await myTaskRow.click()
-        await page.waitForTimeout(400)
+        await page.waitForTimeout(500)
         await expect(myTaskRow).toContainText(/NEEDS.*HUMAN/i, { timeout: 120 * 1000 })
-        await page.waitForTimeout(1300)
+        await page.waitForTimeout(1500)
 
         const tabHumanReview = page.locator('[data-testid="tab-human-review"]')
         await tabHumanReview.click()
-        await page.waitForTimeout(400)
+        await page.waitForTimeout(500)
 
         const queueRow = page.locator(`[data-testid="queue-task-${idPrefix}"]`)
         await expect(queueRow).toBeVisible({ timeout: 10000 })
         await queueRow.click()
-        await page.waitForTimeout(400)
+        await page.waitForTimeout(500)
 
         const reviewedBy = page.locator('[data-testid="decision-reviewed-by"]')
         await reviewedBy.click()
-        await reviewedBy.type('Aoife O\'Connor', { delay: 8 })
-        await page.waitForTimeout(200)
+        await reviewedBy.type('Aoife O\'Connor', { delay: 12 })
+        await page.waitForTimeout(250)
         const reasonField = page.locator('[data-testid="decision-reason"]')
         await reasonField.click()
         const reasonText =
           sc.hilDecision === 'APPROVE' ? 'Article 14 oversight - terms verified, approved.'
-          : sc.hilDecision === 'REJECT' ? 'Article 14 oversight - policy override; loan over committee threshold.'
+          : sc.hilDecision === 'REJECT' ? 'Article 14 oversight - policy override; loan amount over committee threshold without senior sign-off.'
           : 'Article 14 oversight - amendments needed before approval.'
-        await reasonField.type(reasonText, { delay: 4 })
-        await page.waitForTimeout(250)
+        await reasonField.type(reasonText, { delay: 5 })
+        await page.waitForTimeout(300)
 
         const decisionBtn = page.locator(`[data-testid="decision-${sc.hilDecision}"]`)
         await decisionBtn.scrollIntoViewIfNeeded()
         await decisionBtn.click()
-        await page.waitForTimeout(200)
+        await page.waitForTimeout(250)
 
         const submitDecision = page.locator('[data-testid="decision-submit"]')
         await submitDecision.scrollIntoViewIfNeeded()
         await submitDecision.click()
-        await page.waitForTimeout(400)
+        await page.waitForTimeout(500)
 
         const decisionFeedback = page.locator('[data-testid="decision-feedback"]')
         await expect(decisionFeedback).toBeVisible({ timeout: 15000 })
-        await page.waitForTimeout(800)
+        await page.waitForTimeout(1000)
 
         const tabDashboard = page.locator('[data-testid="tab-dashboard"]')
         await tabDashboard.click()
-        await page.waitForTimeout(400)
+        await page.waitForTimeout(500)
       }
 
       // Wait for COMPLETED
@@ -363,103 +356,115 @@ test.describe('Auditex 6-Scenario Demo - v2.7', () => {
       await myRowAfter.scrollIntoViewIfNeeded()
       await expect(myRowAfter).toContainText(/COMPLETED/i, { timeout: 120 * 1000 })
       await myRowAfter.click()
-      await page.waitForTimeout(400)
-
-      const detail = page.locator('[data-testid="task-detail"]')
-      await expect(detail).toBeVisible({ timeout: 10000 })
-      // Wait specifically for Step 5 (defaultOpen) compliance report content to be available
-      await expect(detail.locator('text=/Step 2/i').first()).toBeVisible({ timeout: 30000 })
-      await page.waitForTimeout(400)
-
-      // Wait for the report to load before scrolling - it controls Step 5 content
-      await detail.locator('[data-testid="plain-english-summary"]').waitFor({ timeout: 30000 }).catch(() => {})
-      await page.waitForTimeout(600)
-
-      // === Expand Steps 1-4 (Step 5 is defaultOpen=true so do NOT click) ===
-      // Steps 1, 2, 3, 4 are at index 0, 1, 2, 3. Step 5 at index 4 is already open.
-      for (let s = 0; s < 4; s++) {
-        await ensureSectionOpen(detail, s)
-      }
-
-      // Scroll to top, then walk through each step section with appropriate dwell
-      await detail.evaluate((el) => el.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior }))
       await page.waitForTimeout(500)
 
-      const stepBtns = detail.locator('button', { hasText: /^Step [1-5]/ })
-      const stepReadTimes = [800, 1800, 1500, 1500, 1800]
-      for (let s = 0; s < 5; s++) {
-        const btn = stepBtns.nth(s)
-        if (await btn.isVisible().catch(() => false)) {
-          await btn.scrollIntoViewIfNeeded()
-          await page.waitForTimeout(stepReadTimes[s] || 1500)
-        }
+      // Detail panel
+      const detail = page.locator('[data-testid="task-detail"]')
+      await expect(detail).toBeVisible({ timeout: 10000 })
+      await expect(detail.locator('text=/Step 2/i').first()).toBeVisible({ timeout: 30000 })
+      await page.waitForTimeout(500)
+
+      // Expand all 5 step accordions
+      const steps = detail.locator('button', { hasText: /^Step [1-5]/ })
+      const stepCount = await steps.count()
+      for (let s = 0; s < Math.min(stepCount, 5); s++) {
+        await steps.nth(s).scrollIntoViewIfNeeded()
+        await steps.nth(s).click()
+        await page.waitForTimeout(150)
       }
 
-      // === Step 5: ensure open + expand each Article 9/13/17 sequentially ===
-      // Step 5 should be defaultOpen but make sure
-      await ensureSectionOpen(detail, 4)
-      await page.waitForTimeout(400)
-
-      // Find the EU AI Act compliance container and scroll to it
-      const reportContent = detail.locator('[data-testid="eu-ai-act-compliance"]')
-      if (await reportContent.isVisible().catch(() => false)) {
-        await reportContent.scrollIntoViewIfNeeded()
-        await page.waitForTimeout(600)
-
-        // Expand each Article in sequence (mutually exclusive in UI - only one open at a time)
-        // Click the article header buttons by their visible text
-        const articleNumbers = ['9', '13', '17']
-        for (const num of articleNumbers) {
-          const articleBtn = detail.locator(`button:has-text("Article ${num}")`).first()
-          if (await articleBtn.isVisible().catch(() => false)) {
-            await articleBtn.scrollIntoViewIfNeeded()
-            await articleBtn.click()
-            await page.waitForTimeout(1500)  // dwell while open
-          }
-        }
-        // Final pose: leave Article 17 open and dwell
-        await page.waitForTimeout(800)
+      // Scroll back to top of detail panel, then slow-scroll all the way through so all 5 steps are visible in sequence
+      await detail.evaluate((el) => el.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior }))
+      await page.waitForTimeout(800)
+      const detailHeight = await detail.evaluate((el) => el.scrollHeight)
+      const detailViewport = await detail.evaluate((el) => el.clientHeight)
+      const maxScroll = Math.max(0, detailHeight - detailViewport)
+      const stepReadTimes = [1200, 2200, 1800, 1500, 2500]
+      for (let s = 0; s < Math.min(stepCount, 5); s++) {
+        await steps.nth(s).scrollIntoViewIfNeeded()
+        await page.waitForTimeout(stepReadTimes[s] || 1500)
       }
 
-      // === Vertex sign + verify ===
+      // Step 5 final pose: scroll to bottom and dwell on the report
+      await detail.evaluate((el) => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }))
+      await page.waitForTimeout(1500)
+
+      // Step 5: ensure compliance report is expanded; expand each Article 9/13/17 dropdown if collapsed
+      if (stepCount >= 5) {
+        const stepFive = steps.nth(4)
+        await stepFive.scrollIntoViewIfNeeded()
+        const reportContent = detail.locator('[data-testid="eu-ai-act-compliance"]')
+        if (!(await reportContent.isVisible().catch(() => false))) {
+          await stepFive.click()
+          await page.waitForTimeout(400)
+        }
+        // Expand each Article (the chevron buttons next to "COMPLIANT")
+        const articleHeaders = detail.locator('text=/Article (9|13|17)/i')
+        const artCount = await articleHeaders.count()
+        for (let a = 0; a < artCount; a++) {
+          const hdr = articleHeaders.nth(a)
+          await hdr.scrollIntoViewIfNeeded().catch(() => {})
+          await hdr.click({ force: true }).catch(() => {})
+          await page.waitForTimeout(300)
+        }
+        await page.waitForTimeout(2000)  // dwell on expanded articles
+      }
+
+      // Vertex sign + verify
       const signBtn = detail.locator('[data-testid="sign-report-button"]')
       if (await signBtn.isVisible().catch(() => false)) {
         await signBtn.scrollIntoViewIfNeeded()
-        await page.waitForTimeout(250)
+        await page.waitForTimeout(300)
         await signBtn.click()
-        await page.waitForTimeout(1300)
+        await page.waitForTimeout(1500)
 
         const signedDetails = detail.locator('[data-testid="signed-report-details"]')
         if (await signedDetails.isVisible().catch(() => false)) {
           await signedDetails.scrollIntoViewIfNeeded()
-          await page.waitForTimeout(1000)
+          await page.waitForTimeout(1200)
         }
 
         const verifyBtn = detail.locator('[data-testid="verify-proof-button"]')
         if (await verifyBtn.isVisible().catch(() => false)) {
           await verifyBtn.scrollIntoViewIfNeeded()
-          await page.waitForTimeout(250)
+          await page.waitForTimeout(300)
           await verifyBtn.click()
-          await page.waitForTimeout(1300)
+          await page.waitForTimeout(1500)
 
           const verifyResultPanel = detail.locator('[data-testid="verify-result-panel"]')
           if (await verifyResultPanel.isVisible().catch(() => false)) {
             await verifyResultPanel.scrollIntoViewIfNeeded()
-            await page.waitForTimeout(1800)
+            await page.waitForTimeout(2200)  // dwell on VALID/INVALID
           }
 
           const verifyClose = detail.locator('[data-testid="verify-close"]')
           if (await verifyClose.isVisible().catch(() => false)) {
             await verifyClose.click()
-            await page.waitForTimeout(200)
+            await page.waitForTimeout(250)
           }
         }
       }
 
-      await page.waitForTimeout(300)
-      if (i < SCENARIOS.length - 1) await page.waitForTimeout(1000)
+      // For HIL scenarios: click Export EU AI Act JSON briefly to flash human_decisions visible
+      if (sc.hil) {
+        const exportBtn = detail.locator('text=/Export EU AI Act JSON/i').first()
+        if (await exportBtn.isVisible().catch(() => false)) {
+          await exportBtn.scrollIntoViewIfNeeded()
+          await page.waitForTimeout(800)
+          // Don't actually click (would trigger download); just dwell on the visible button
+        }
+        const downloadBundle = detail.locator('[data-testid="download-signed-bundle"]')
+        if (await downloadBundle.isVisible().catch(() => false)) {
+          await downloadBundle.scrollIntoViewIfNeeded()
+          await page.waitForTimeout(800)
+        }
+      }
+
+      await page.waitForTimeout(500)
+
+      if (i < SCENARIOS.length - 1) await page.waitForTimeout(1500)
     }
 
-    await showTitleCard(page, 'Auditex', 'github.com/vsenthil7/auditex   |   DoraHacks BUIDL #43345   |   6 scenarios shown - all signed by Vertex consensus, 3 with Article 14 human oversight.', 3500)
+    await showTitleCard(page, 'Auditex', 'github.com/vsenthil7/auditex   |   DoraHacks BUIDL #43345   |   6 scenarios shown - all signed by Vertex consensus, 3 with Article 14 human oversight.', 4000)
   })
 })
